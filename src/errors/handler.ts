@@ -144,23 +144,83 @@ export class ErrorHandler {
 
   private static renderBuiltin404(ctx: Context): string {
     return `<!DOCTYPE html>
-<html lang="en" style="background: #09090b; color: #f4f4f5; font-family: system-ui, -apple-system, sans-serif;">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>404 - Page Not Found | BirFramework</title>
+  <title>404: This page could not be found.</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #fafafa;
+      color: #000000;
+      font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .code {
+      display: inline-block;
+      font-size: 38px;
+      font-weight: 500;
+      line-height: 49px;
+      margin: 0 24px 0 0;
+      padding-right: 24px;
+      border-right: 1px solid rgba(0, 0, 0, 0.25);
+    }
+    .content {
+      display: inline-block;
+      text-align: left;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 24px;
+      margin: 0;
+      color: #171717;
+    }
+    .links {
+      margin-top: 6px;
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+    }
+    .links a {
+      color: #737373;
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .links a:hover {
+      color: #000000;
+      text-decoration: underline;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000000; color: #ffffff; }
+      .code { border-right-color: rgba(255, 255, 255, 0.3); color: #ffffff; }
+      .title { color: #ededed; }
+      .links a { color: #888888; }
+      .links a:hover { color: #ffffff; }
+    }
+  </style>
 </head>
-<body style="min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px; text-align: center;">
-  <div style="max-width: 480px;">
-    <div style="font-size: 84px; font-weight: 900; color: #38bdf8; font-family: ui-monospace, monospace; line-height: 1; margin-bottom: 16px;">404</div>
-    <h1 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Page Not Found</h1>
-    <p style="font-size: 14px; color: #a1a1aa; line-height: 1.6; margin-bottom: 24px;">
-      The requested route <code style="background: #27272a; padding: 3px 8px; border-radius: 6px; color: #f4f4f5; font-size: 13px;">${ctx.method} ${ctx.path}</code> was not found on this server.
-    </p>
-    <a href="/" style="display: inline-block; background: #38bdf8; color: #09090b; font-weight: 700; font-size: 13px; padding: 10px 24px; border-radius: 10px; text-decoration: none; transition: opacity 0.2s;">
-      &larr; Return to Homepage
-    </a>
-    <div style="margin-top: 36px; font-size: 11px; color: #52525b;">BirFramework v${VERSION}</div>
+<body>
+  <div class="container">
+    <h1 class="code">404</h1>
+    <div class="content">
+      <h2 class="title">This page could not be found.</h2>
+      <div class="links">
+        <a href="/">Home</a>
+        <a href="https://birframework.dev" target="_blank">Docs</a>
+        <a href="https://github.com/ferdisahin/BirFramework" target="_blank">GitHub &nearr;</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;
@@ -168,17 +228,83 @@ export class ErrorHandler {
 
   private static renderBuiltin403(message: string): string {
     return `<!DOCTYPE html>
-<html lang="en" style="background: #09090b; color: #f4f4f5; font-family: system-ui, -apple-system, sans-serif;">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>403 - Forbidden | BirFramework</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>403: Access Forbidden</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #fafafa;
+      color: #000000;
+      font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .code {
+      display: inline-block;
+      font-size: 38px;
+      font-weight: 500;
+      line-height: 49px;
+      margin: 0 24px 0 0;
+      padding-right: 24px;
+      border-right: 1px solid rgba(0, 0, 0, 0.25);
+    }
+    .content {
+      display: inline-block;
+      text-align: left;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 24px;
+      margin: 0;
+      color: #171717;
+    }
+    .links {
+      margin-top: 6px;
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+    }
+    .links a {
+      color: #737373;
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .links a:hover {
+      color: #000000;
+      text-decoration: underline;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000000; color: #ffffff; }
+      .code { border-right-color: rgba(255, 255, 255, 0.3); color: #ffffff; }
+      .title { color: #ededed; }
+      .links a { color: #888888; }
+      .links a:hover { color: #ffffff; }
+    }
+  </style>
 </head>
-<body style="min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px; text-align: center;">
-  <div style="max-width: 480px;">
-    <div style="font-size: 84px; font-weight: 900; color: #f59e0b; font-family: ui-monospace, monospace; line-height: 1; margin-bottom: 16px;">403</div>
-    <h1 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Access Forbidden</h1>
-    <p style="font-size: 14px; color: #a1a1aa; line-height: 1.6; margin-bottom: 24px;">${message || 'You do not have permission to access this resource.'}</p>
-    <a href="/" style="display: inline-block; background: #27272a; color: #ffffff; font-weight: 600; font-size: 13px; padding: 10px 24px; border-radius: 10px; text-decoration: none;">&larr; Return Home</a>
+<body>
+  <div class="container">
+    <h1 class="code">403</h1>
+    <div class="content">
+      <h2 class="title">${message || 'This action is unauthorized.'}</h2>
+      <div class="links">
+        <a href="/">Home</a>
+        <a href="https://birframework.dev" target="_blank">Docs</a>
+        <a href="https://github.com/ferdisahin/BirFramework" target="_blank">GitHub &nearr;</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;
@@ -186,17 +312,83 @@ export class ErrorHandler {
 
   private static renderBuiltin500(): string {
     return `<!DOCTYPE html>
-<html lang="en" style="background: #09090b; color: #f4f4f5; font-family: system-ui, -apple-system, sans-serif;">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>500 - Server Error</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>500: Internal Server Error</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #fafafa;
+      color: #000000;
+      font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .code {
+      display: inline-block;
+      font-size: 38px;
+      font-weight: 500;
+      line-height: 49px;
+      margin: 0 24px 0 0;
+      padding-right: 24px;
+      border-right: 1px solid rgba(0, 0, 0, 0.25);
+    }
+    .content {
+      display: inline-block;
+      text-align: left;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 24px;
+      margin: 0;
+      color: #171717;
+    }
+    .links {
+      margin-top: 6px;
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+    }
+    .links a {
+      color: #737373;
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .links a:hover {
+      color: #000000;
+      text-decoration: underline;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000000; color: #ffffff; }
+      .code { border-right-color: rgba(255, 255, 255, 0.3); color: #ffffff; }
+      .title { color: #ededed; }
+      .links a { color: #888888; }
+      .links a:hover { color: #ffffff; }
+    }
+  </style>
 </head>
-<body style="min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px; text-align: center;">
-  <div style="max-width: 480px;">
-    <div style="font-size: 84px; font-weight: 900; color: #ef4444; font-family: ui-monospace, monospace; line-height: 1; margin-bottom: 16px;">500</div>
-    <h1 style="font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Internal Server Error</h1>
-    <p style="font-size: 14px; color: #a1a1aa; line-height: 1.6; margin-bottom: 24px;">An unexpected error occurred on the server. Please try again later.</p>
-    <a href="/" style="display: inline-block; background: #27272a; color: #ffffff; font-weight: 600; font-size: 13px; padding: 10px 24px; border-radius: 10px; text-decoration: none;">&larr; Return Home</a>
+<body>
+  <div class="container">
+    <h1 class="code">500</h1>
+    <div class="content">
+      <h2 class="title">Internal Server Error.</h2>
+      <div class="links">
+        <a href="/">Home</a>
+        <a href="https://birframework.dev" target="_blank">Docs</a>
+        <a href="https://github.com/ferdisahin/BirFramework" target="_blank">GitHub &nearr;</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;

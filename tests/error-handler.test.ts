@@ -79,8 +79,10 @@ describe('BirFramework ErrorHandler & Ignition Debug Screen Tests', () => {
 
     res.assertNotFound()
        .assertSee('404')
-       .assertSee('Page Not Found')
-       .assertSee('Return to Homepage');
+       .assertSee('This page could not be found')
+       .assertSee('Home')
+       .assertSee('Docs')
+       .assertSee('GitHub');
   });
 
   test('Smart 404 should return JSON for API requests', async () => {
