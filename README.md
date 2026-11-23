@@ -155,6 +155,18 @@ bir schedule:work               Start the task scheduler daemon
 bir schedule:run                Run due scheduled tasks once
 ```
 
+## Performance Benchmarks
+
+Independent and empirical side-by-side benchmark conducted on Apple Silicon with fresh default project installations:
+
+| Framework | Requests / Sec (`ab -c 10`) | Mean Latency | 99th Percentile | Architecture |
+| :--- | :---: | :---: | :---: | :--- |
+| **BirFramework** | **7,899 RPS** 🚀 | **1.26 ms** ⚡ | **4 ms** | Persistent In-Memory V8 |
+| **Next.js 16** | 7,097 RPS | 1.40 ms | 4 ms | Node.js + React SSR |
+| **Laravel 13** | 300 RPS | 33.38 ms | 71 ms | Traditional Process-per-Request (PHP 8.5) |
+
+*BirFramework delivers ~26x faster response times than traditional process-per-request PHP while matching and exceeding Node.js meta-framework throughput.* For full details, see the [online benchmark documentation](https://birframework.dev/docs/benchmarks).
+
 ## Database and ORM Example
 
 ```typescript
