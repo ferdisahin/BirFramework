@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test tests/app.test.ts tests/database.test.ts tests/auth.test.ts tests/features.test.ts tests/advanced.test.ts tests/cli.test.ts tests/cache.test.ts tests/resources.test.ts tests/factory.test.ts",
+    "test": "tsx --test tests/app.test.ts tests/database.test.ts tests/auth.test.ts tests/features.test.ts tests/advanced.test.ts tests/cli.test.ts tests/cache.test.ts tests/resources.test.ts tests/factory.test.ts tests/events.test.ts",
     "prepublishOnly": "npm run build && npm test",
     "bump": "node scripts/bump.js",
     "bir": "tsx src/cli/index.ts",

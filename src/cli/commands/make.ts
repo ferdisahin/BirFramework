@@ -267,3 +267,60 @@ export default ${cleanName};
   writeFileSync(targetPath, template, 'utf-8');
   console.log(`\x1b[32m✔ Factory created successfully:\x1b[0m database/factories/${cleanName}.ts`);
 }
+
+export function makeEvent(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify an event name. E.g.: bir make:event UserRegistered');
+    return;
+  }
+
+  const cleanName = name;
+  const targetPath = resolve(process.cwd(), 'app/events', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Event ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const template = `export class ${cleanName} {
+  constructor(public data: any) {}
+}
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Event created successfully:\x1b[0m app/events/${cleanName}.ts`);
+}
+
+export function makeListener(name: string, eventName?: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a listener name. E.g.: bir make:listener SendWelcomeNotification');
+    return;
+  }
+
+  const cleanName = name.endsWith('Listener') ? name : `${name}Listener`;
+  const targetPath = resolve(process.cwd(), 'app/listeners', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Listener ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const eventImport = eventName ? `import { ${eventName} } from '../events/${eventName}.js';\n\n` : '';
+  const paramType = eventName || 'any';
+
+  const template = `${eventImport}export class ${cleanName} {
+  public async handle(event: ${paramType}): Promise<void> {
+    // Process event
+  }
+}
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Listener created successfully:\x1b[0m app/listeners/${cleanName}.ts`);
+}

@@ -1,4 +1,4 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeSeeder, makeFactory } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeSeeder, makeFactory, makeEvent, makeListener } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
@@ -100,6 +100,17 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'make:event': {
+      makeEvent(args[1] || '');
+      break;
+    }
+
+    case 'make:listener': {
+      const eventName = args.includes('--event') ? args[args.indexOf('--event') + 1] : undefined;
+      makeListener(args[1] || '', eventName);
+      break;
+    }
+
     case 'db:seed': {
       await SeederRunner.run();
       break;
@@ -192,6 +203,8 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:job <name>\x1b[0m           Scaffold a new Background Job class');
       console.log('  \x1b[32mmake:seeder <name>\x1b[0m        Scaffold a new Database Seeder');
       console.log('  \x1b[32mmake:factory <name>\x1b[0m       Scaffold a new Model Factory');
+      console.log('  \x1b[32mmake:event <name>\x1b[0m         Scaffold a new Event class');
+      console.log('  \x1b[32mmake:listener <name> [--event]\x1b[0m Scaffold a new Event Listener');
       console.log('  \x1b[32mmake:auth\x1b[0m                 Scaffold complete Auth (Model, Controller, Views, Migration)');
       console.log('  \x1b[32mmigrate\x1b[0m                   Run pending database migrations');
       console.log('  \x1b[32mmigrate:rollback\x1b[0m          Rollback the latest database migration batch');
