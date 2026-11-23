@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { watch, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Context } from '../http/context.js';
@@ -102,7 +102,8 @@ export class Application {
     return this;
   }
 
-  public async handle(ctx: Context): Promise<void> {
+  public async handle(ctxOrReq: Context | IncomingMessage, maybeRes?: ServerResponse): Promise<void> {
+    const ctx = ctxOrReq instanceof Context ? ctxOrReq : new Context(ctxOrReq, maybeRes!);
     let index = -1;
     const middlewares = this.globalMiddlewares;
 

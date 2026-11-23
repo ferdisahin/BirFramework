@@ -6,9 +6,56 @@ export class Model {
   public static table: string = '';
   public static primaryKey: string = 'id';
   public static timestamps: boolean = true;
+  public static softDeletes: boolean = false;
+
+  private static _hooksMap = new Map<string, Array<(m: any) => Promise<void> | void>>();
 
   public attributes: Record<string, any> = {};
   public exists: boolean = false;
+
+  private static getHookKey(event: string): string {
+    return `${this.name || 'Model'}:${event}`;
+  }
+
+  public static creating(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('creating', cb);
+  }
+
+  public static created(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('created', cb);
+  }
+
+  public static saving(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('saving', cb);
+  }
+
+  public static saved(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('saved', cb);
+  }
+
+  public static deleting(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('deleting', cb);
+  }
+
+  public static deleted(cb: (model: any) => Promise<void> | void): void {
+    this.addHook('deleted', cb);
+  }
+
+  private static addHook(event: string, cb: (model: any) => Promise<void> | void): void {
+    const key = this.getHookKey(event);
+    if (!this._hooksMap.has(key)) {
+      this._hooksMap.set(key, []);
+    }
+    this._hooksMap.get(key)!.push(cb);
+  }
+
+  public static async runHooks(event: string, model: any): Promise<void> {
+    const key = this.getHookKey(event);
+    const callbacks = this._hooksMap.get(key) || [];
+    for (const cb of callbacks) {
+      await cb(model);
+    }
+  }
 
   constructor(attributes: Record<string, any> = {}, exists: boolean = false) {
     this.attributes = { ...attributes };
@@ -48,9 +95,25 @@ export class Model {
     return name.endsWith('s') ? name : `${name}s`;
   }
 
-  public static query<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
+  public static rawQuery<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
     const tableName = this.getTableName();
     return new QueryBuilder(tableName, dbConnection);
+  }
+
+  public static query<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
+    const q = this.rawQuery();
+    if (this.softDeletes) {
+      q.whereNull('deleted_at');
+    }
+    return q;
+  }
+
+  public static withTrashed<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
+    return this.rawQuery();
+  }
+
+  public static onlyTrashed<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
+    return this.rawQuery().whereNotNull('deleted_at');
   }
 
   public static where<M extends typeof Model>(
@@ -83,17 +146,9 @@ export class Model {
   }
 
   public static async create<M extends typeof Model>(this: M, data: Record<string, any>): Promise<InstanceType<M>> {
-    const attributes = { ...data };
-    if (this.timestamps) {
-      const now = new Date().toISOString();
-      if (!attributes['created_at']) attributes['created_at'] = now;
-      if (!attributes['updated_at']) attributes['updated_at'] = now;
-    }
-
-    const { lastInsertRowid } = await this.query().insert(attributes);
-    attributes[this.primaryKey] = Number(lastInsertRowid);
-
-    return new this(attributes, true) as InstanceType<M>;
+    const instance = new this(data) as InstanceType<M>;
+    await instance.save();
+    return instance;
   }
 
   public static async paginate<M extends typeof Model>(
@@ -109,6 +164,20 @@ export class Model {
     const ctor = this.constructor as typeof Model;
     const pk = ctor.primaryKey;
     const id = this.attributes[pk];
+    const isNew = !this.exists;
+
+    // Trigger beforeSave & beforeCreate hooks
+    if (typeof (this as any).beforeSave === 'function') {
+      await (this as any).beforeSave();
+    }
+    await ctor.runHooks('saving', this);
+
+    if (isNew) {
+      if (typeof (this as any).beforeCreate === 'function') {
+        await (this as any).beforeCreate();
+      }
+      await ctor.runHooks('creating', this);
+    }
 
     if (ctor.timestamps) {
       this.attributes['updated_at'] = new Date().toISOString();
@@ -117,15 +186,28 @@ export class Model {
     if (this.exists && id !== undefined) {
       const toUpdate = { ...this.attributes };
       delete toUpdate[pk];
-      await ctor.query().where(pk, '=', id).update(toUpdate);
+      await ctor.rawQuery().where(pk, '=', id).update(toUpdate);
     } else {
       if (ctor.timestamps && !this.attributes['created_at']) {
         this.attributes['created_at'] = new Date().toISOString();
       }
-      const { lastInsertRowid } = await ctor.query().insert(this.attributes);
+      const { lastInsertRowid } = await ctor.rawQuery().insert(this.attributes);
       this.attributes[pk] = Number(lastInsertRowid);
       this.exists = true;
     }
+
+    // Trigger afterCreate & afterSave hooks
+    if (isNew) {
+      if (typeof (this as any).afterCreate === 'function') {
+        await (this as any).afterCreate();
+      }
+      await ctor.runHooks('created', this);
+    }
+
+    if (typeof (this as any).afterSave === 'function') {
+      await (this as any).afterSave();
+    }
+    await ctor.runHooks('saved', this);
 
     return this;
   }
@@ -135,6 +217,39 @@ export class Model {
     return this.save();
   }
 
+  public trashed(): boolean {
+    return !!this.attributes['deleted_at'];
+  }
+
+  public async restore(): Promise<this> {
+    if (!this.exists) return this;
+    this.attributes['deleted_at'] = null;
+    return this.save();
+  }
+
+  public async forceDelete(): Promise<boolean> {
+    const ctor = this.constructor as typeof Model;
+    const pk = ctor.primaryKey;
+    const id = this.attributes[pk];
+
+    if (!this.exists || id === undefined) return false;
+
+    if (typeof (this as any).beforeDelete === 'function') {
+      await (this as any).beforeDelete();
+    }
+    await ctor.runHooks('deleting', this);
+
+    const count = await ctor.rawQuery().where(pk, '=', id).delete();
+    this.exists = false;
+
+    if (typeof (this as any).afterDelete === 'function') {
+      await (this as any).afterDelete();
+    }
+    await ctor.runHooks('deleted', this);
+
+    return count > 0;
+  }
+
   public async delete(): Promise<boolean> {
     const ctor = this.constructor as typeof Model;
     const pk = ctor.primaryKey;
@@ -142,9 +257,26 @@ export class Model {
 
     if (!this.exists || id === undefined) return false;
 
-    const count = await ctor.query().where(pk, '=', id).delete();
-    this.exists = false;
-    return count > 0;
+    if (typeof (this as any).beforeDelete === 'function') {
+      await (this as any).beforeDelete();
+    }
+    await ctor.runHooks('deleting', this);
+
+    if (ctor.softDeletes) {
+      this.attributes['deleted_at'] = new Date().toISOString();
+      await ctor.rawQuery().where(pk, '=', id).update({ deleted_at: this.attributes['deleted_at'] });
+    } else {
+      const count = await ctor.rawQuery().where(pk, '=', id).delete();
+      this.exists = false;
+      if (count === 0) return false;
+    }
+
+    if (typeof (this as any).afterDelete === 'function') {
+      await (this as any).afterDelete();
+    }
+    await ctor.runHooks('deleted', this);
+
+    return true;
   }
 
   /**

@@ -2,6 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defaultViewEngine, type ViewEngine } from '../view/engine.js';
 import type { Session } from '../auth/session.js';
 import { Validator, type ValidationRules } from '../validation/index.js';
+import { UploadedFile } from './uploaded-file.js';
+import { parseMultipart } from './multipart.js';
+import { __, Lang } from '../localization/translator.js';
 
 export interface CookieOptions {
   maxAge?: number;
@@ -18,6 +21,8 @@ export class Context {
   public session?: Session;
   private _bodyParsed: boolean = false;
   private _cachedBody: any = null;
+  private _files: Record<string, UploadedFile[]> = {};
+  private _rawBodyBuffer: Buffer | null = null;
   private _statusCode: number = 200;
   private _headers: Record<string, string | string[]> = {};
 
@@ -46,6 +51,18 @@ export class Context {
     return this.req.headers;
   }
 
+  public get locale(): string {
+    return (
+      (this.query['lang'] as string) ||
+      (this.req.headers['x-locale'] as string) ||
+      Lang.getLocale()
+    );
+  }
+
+  public __(key: string, replace: Record<string, any> = {}, locale?: string): string {
+    return __(key, replace, locale || this.locale);
+  }
+
   public header(name: string, value: string | string[]): this {
     this._headers[name.toLowerCase()] = value;
     this.res.setHeader(name, value);
@@ -64,33 +81,66 @@ export class Context {
     }
 
     const contentType = this.req.headers['content-type'] || '';
-    const raw = await this.readRawBody();
+    const rawBuffer = await this.readRawBodyBuffer();
 
-    if (!raw || raw.trim().length === 0) {
+    if (!rawBuffer || rawBuffer.length === 0) {
       this._bodyParsed = true;
       this._cachedBody = null;
       return null as unknown as T;
     }
 
-    if (contentType.includes('application/json')) {
+    if (contentType.includes('multipart/form-data')) {
+      const boundaryMatch = contentType.match(/boundary=(?:["']?)([^"';]+)(?:["']?)/);
+      if (boundaryMatch && boundaryMatch[1]) {
+        const parsed = parseMultipart(rawBuffer, boundaryMatch[1]);
+        this._files = parsed.files;
+        this._cachedBody = parsed.fields;
+      } else {
+        this._cachedBody = {};
+      }
+    } else if (contentType.includes('application/json')) {
       try {
-        this._cachedBody = JSON.parse(raw);
+        this._cachedBody = JSON.parse(rawBuffer.toString('utf-8'));
       } catch (err) {
         throw new Error('Invalid JSON payload');
       }
     } else if (contentType.includes('application/x-www-form-urlencoded')) {
-      const searchParams = new URLSearchParams(raw);
+      const searchParams = new URLSearchParams(rawBuffer.toString('utf-8'));
       const parsed: Record<string, any> = {};
       for (const [key, value] of searchParams.entries()) {
         parsed[key] = value;
       }
       this._cachedBody = parsed;
     } else {
-      this._cachedBody = raw;
+      this._cachedBody = rawBuffer.toString('utf-8');
     }
 
     this._bodyParsed = true;
     return this._cachedBody as T;
+  }
+
+  /**
+   * Retrieve a single uploaded file by input field name
+   */
+  public async file(name: string): Promise<UploadedFile | null> {
+    if (!this._bodyParsed) {
+      await this.body();
+    }
+    const list = this._files[name];
+    return list && list.length > 0 ? list[0]! : null;
+  }
+
+  /**
+   * Retrieve all uploaded files, or all files for a specific field name
+   */
+  public async files(name?: string): Promise<UploadedFile[] | Record<string, UploadedFile[]>> {
+    if (!this._bodyParsed) {
+      await this.body();
+    }
+    if (name) {
+      return this._files[name] || [];
+    }
+    return this._files;
   }
 
   /**
@@ -172,13 +222,20 @@ export class Context {
     }
   }
 
-  private readRawBody(): Promise<string> {
+  private readRawBodyBuffer(): Promise<Buffer> {
+    if (this._rawBodyBuffer) {
+      return Promise.resolve(this._rawBodyBuffer);
+    }
+
     return new Promise((resolve, reject) => {
-      let data = '';
+      const chunks: Buffer[] = [];
       this.req.on('data', (chunk) => {
-        data += chunk;
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
-      this.req.on('end', () => resolve(data));
+      this.req.on('end', () => {
+        this._rawBodyBuffer = Buffer.concat(chunks);
+        resolve(this._rawBodyBuffer);
+      });
       this.req.on('error', (err) => reject(err));
     });
   }

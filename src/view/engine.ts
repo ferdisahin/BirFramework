@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import { birScripts } from './turbo.js';
 import { parseMarkdown } from './markdown.js';
 import { VERSION } from '../version.js';
+import { __, Lang } from '../localization/translator.js';
 
 export type MarkdownParser = (markdown: string) => string;
 
@@ -38,6 +39,8 @@ export class ViewEngine {
     const rawTemplate = this.loadTemplate(templateName);
     const viewScope = {
       version: VERSION,
+      __: (key: string, replace?: Record<string, any>, locale?: string) => __(key, replace, locale),
+      Lang,
       ...data,
     };
     return this.compile(rawTemplate, viewScope);
@@ -65,12 +68,19 @@ export class ViewEngine {
    * Modern Blade-style Component & Directive Compiler
    */
   public compile(template: string, data: Record<string, any> = {}): string {
+    const scope = {
+      version: VERSION,
+      __: (key: string, replace?: Record<string, any>, locale?: string) => __(key, replace, locale),
+      Lang,
+      ...data,
+    };
+
     this.compileDepth++;
     try {
       let output = template;
 
       // 1. Process Modern Blade Component Tags: <x-component.name ...>...</x-component.name>
-      output = this.compileComponents(output, data);
+      output = this.compileComponents(output, scope);
 
       // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
       output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
@@ -95,6 +105,11 @@ export class ViewEngine {
           return token;
         }
         return '';
+      });
+
+      // 1.4 Localization: @lang('key')
+      output = output.replace(/@lang\s*\((['"])(.*?)\1\)/g, (_match, _quote, key) => {
+        return __(key);
       });
 
       // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
@@ -156,18 +171,31 @@ export class ViewEngine {
       // 4. Conditionals: @if(condition) ... @else ... @endif
       const ifRegex = /@if\s*\((.+?)\)([\s\S]*?)(?:@else([\s\S]*?))?@endif/g;
       output = output.replace(ifRegex, (_, condition, trueContent, falseContent) => {
-        const isTrue = this.evaluateCondition(condition, data);
-        return isTrue ? this.compile(trueContent, data) : falseContent ? this.compile(falseContent, data) : '';
+        const isTrue = this.evaluateCondition(condition, scope);
+        return isTrue ? this.compile(trueContent, scope) : falseContent ? this.compile(falseContent, scope) : '';
       });
 
       // 5. Unescaped HTML: {!! var !!} or {!! slot !!}
-      output = output.replace(/\{!!\s*([a-zA-Z0-9_$.]+)\s*!!\}/g, (_, varName) => {
-        const cleanVar = varName.replace(/^\$/, '');
-        const val = this.resolveVariable(cleanVar, data);
+      output = output.replace(/\{!!\s*([\s\S]+?)\s*!!\}/g, (_, expression) => {
+        const trimmed = expression.trim();
+        const cleanVar = trimmed.replace(/^\$/, '');
+
+        // Support function calls e.g. {!! bir_scripts() !!} or {!! __('raw.html') !!}
+        if (cleanVar.includes('(') && cleanVar.includes(')')) {
+          try {
+            const fn = new Function(...Object.keys(scope), `return (${cleanVar});`);
+            const res = fn(...Object.values(scope));
+            return res !== undefined && res !== null ? String(res) : '';
+          } catch {
+            // fallback
+          }
+        }
+
+        const val = this.resolveVariable(cleanVar, scope);
         return val !== undefined && val !== null ? String(val) : '';
       });
 
-      // 6. Escaped variables and ternary expressions: {{ var }} or {{ a == b ? 'yes' : 'no' }}
+      // 6. Escaped variables, expressions and ternary: {{ var }} or {{ a == b ? 'yes' : 'no' }}
       output = output.replace(/\{\{\s*([\s\S]+?)\s*\}\}/g, (_, expression) => {
         const trimmed = expression.trim();
         // Check for ternary expression: cond ? trueVal : falseVal
@@ -178,15 +206,28 @@ export class ViewEngine {
             const cond = trimmed.slice(0, qIdx).trim();
             const trueVal = trimmed.slice(qIdx + 1, cIdx).trim();
             const falseVal = trimmed.slice(cIdx + 1).trim();
-            const isTrue = this.evaluateCondition(cond, data);
+            const isTrue = this.evaluateCondition(cond, scope);
             const rawVal = isTrue ? trueVal : falseVal;
             // Strip quotes if literal string
             const cleanVal = rawVal.replace(/^['"](.*)['"]$/, '$1');
             return this.escapeHtml(cleanVal);
           }
         }
+
         const cleanVar = trimmed.replace(/^\$/, '');
-        const val = this.resolveVariable(cleanVar, data);
+
+        // Support function calls and expressions in {{ ... }} e.g. {{ __('welcome', { name: 'Zeynep' }) }}
+        if (cleanVar.includes('(') && cleanVar.includes(')')) {
+          try {
+            const fn = new Function(...Object.keys(scope), `return (${cleanVar});`);
+            const res = fn(...Object.values(scope));
+            return res !== undefined && res !== null ? this.escapeHtml(String(res)) : '';
+          } catch {
+            // fallback
+          }
+        }
+
+        const val = this.resolveVariable(cleanVar, scope);
         return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
       });
 

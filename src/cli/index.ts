@@ -167,6 +167,27 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'test': {
+      console.log('\n\x1b[36m⚡ Running test suite with BirFramework Test Runner...\x1b[0m\n');
+      const filter = args[1] && !args[1].startsWith('-') ? args[1] : undefined;
+      const testArgs = ['--test'];
+      if (filter) {
+        testArgs.push(`tests/**/*${filter}*.test.ts`);
+      } else {
+        testArgs.push('tests/**/*.test.ts');
+      }
+
+      const child = spawn('npx', ['tsx', ...testArgs], {
+        stdio: 'inherit',
+        env: { ...process.env, NODE_ENV: 'test' },
+      });
+
+      child.on('exit', (code: number | null) => {
+        process.exit(code || 0);
+      });
+      break;
+    }
+
     case 'new': {
       const name = args[1] && !args[1].startsWith('--') ? args[1] : undefined;
       const hasJs = args.includes('--js');
@@ -195,6 +216,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
       console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css]\x1b[0m Create a new project (Tailwind default)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
+      console.log('  \x1b[32mtest [filter]\x1b[0m             Run application automated test suites');
       console.log('  \x1b[32mroute:list\x1b[0m                List all registered application routes');
       console.log('  \x1b[32mmake:controller <name>\x1b[0m    Scaffold a new Controller');
       console.log('  \x1b[32mmake:middleware <name>\x1b[0m    Scaffold a new Middleware');

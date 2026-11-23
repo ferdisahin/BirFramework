@@ -14,6 +14,8 @@ export * from './mail/index.js';
 export * from './schedule/index.js';
 export * from './events/index.js';
 export * from './security/index.js';
+export * from './testing/index.js';
+export * from './localization/index.js';
 export * from './version.js';
 
 
