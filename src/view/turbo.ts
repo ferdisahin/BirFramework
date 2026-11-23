@@ -50,7 +50,14 @@ export function birScripts(): string {
 
     try {
       var url = new URL(anchor.href, window.location.href);
-      return url.origin === window.location.origin;
+      if (url.origin !== window.location.origin) return false;
+
+      // Same-page hash navigation like /#benchmarks when already on /
+      if (url.pathname === window.location.pathname && url.hash) {
+        return false;
+      }
+
+      return true;
     } catch (e) {
       return false;
     }
@@ -58,6 +65,9 @@ export function birScripts(): string {
 
   function navigate(url, pushState) {
     startProgress();
+    var parsedUrl;
+    try { parsedUrl = new URL(url, window.location.href); } catch (e) {}
+    var targetHash = parsedUrl && parsedUrl.hash ? parsedUrl.hash : '';
 
     fetch(url, { headers: { 'X-Bir-Turbo': 'true' } })
       .then(function(res) {
@@ -100,7 +110,18 @@ export function birScripts(): string {
           window.history.pushState({ turbo: true, url: url }, '', url);
         }
 
-        window.scrollTo(0, 0);
+        if (targetHash) {
+          try {
+            var targetEl = document.querySelector(targetHash);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              window.scrollTo(0, 0);
+            }
+          } catch(e) { window.scrollTo(0, 0); }
+        } else {
+          window.scrollTo(0, 0);
+        }
         finishProgress();
 
         // 6. Execute newly injected scripts inside body
@@ -132,6 +153,25 @@ export function birScripts(): string {
 
   document.addEventListener('click', function(e) {
     var anchor = e.target.closest('a');
+    if (!anchor) return;
+
+    var href = anchor.getAttribute('href');
+    if (!href) return;
+
+    // Smooth scroll for same-page hash links (#benchmarks or /#benchmarks when on /)
+    if (href.startsWith('#') || (href.startsWith('/#') && (window.location.pathname === '/' || window.location.pathname === ''))) {
+      var hash = href.startsWith('/#') ? href.slice(1) : href;
+      try {
+        var target = document.querySelector(hash);
+        if (target) {
+          e.preventDefault();
+          window.history.pushState(null, '', href);
+          target.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      } catch (err) {}
+    }
+
     if (shouldIntercept(anchor)) {
       e.preventDefault();
       navigate(anchor.href, true);
