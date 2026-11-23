@@ -1,4 +1,35 @@
 export function birScripts(): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  const liveReloadSnippet = isDev
+    ? `
+  // --- Live Reload Client (Development SSE only) ---
+  if (typeof EventSource !== 'undefined') {
+    try {
+      var liveSource = new EventSource('/__bir_live_reload');
+      liveSource.onmessage = function(ev) {
+        if (ev.data === 'css-reload') {
+          var links = document.querySelectorAll('link[rel="stylesheet"]');
+          links.forEach(function(l) {
+            var href = l.href.split('?')[0];
+            l.href = href + '?t=' + Date.now();
+          });
+        } else if (ev.data === 'reload') {
+          navigate(window.location.href, false);
+        }
+      };
+      liveSource.onerror = function() {
+        setTimeout(function() {
+          fetch(window.location.href)
+            .then(function(r) { if (r.ok) location.reload(); })
+            .catch(function() {});
+        }, 1500);
+      };
+    } catch (err) {}
+  }
+`
+    : '';
+
   return `
 <style id="bir-turbo-styles">
   #bir-turbo-progress {
@@ -187,31 +218,7 @@ export function birScripts(): string {
       navigate(url, true);
     }
   };
-
-  // --- Live Reload Client (Development SSE) ---
-  if (typeof EventSource !== 'undefined') {
-    try {
-      var liveSource = new EventSource('/__bir_live_reload');
-      liveSource.onmessage = function(ev) {
-        if (ev.data === 'css-reload') {
-          var links = document.querySelectorAll('link[rel="stylesheet"]');
-          links.forEach(function(l) {
-            var href = l.href.split('?')[0];
-            l.href = href + '?t=' + Date.now();
-          });
-        } else if (ev.data === 'reload') {
-          navigate(window.location.href, false);
-        }
-      };
-      liveSource.onerror = function() {
-        setTimeout(function() {
-          fetch(window.location.href)
-            .then(function(r) { if (r.ok) location.reload(); })
-            .catch(function() {});
-        }, 800);
-      };
-    } catch (err) {}
-  }
+${liveReloadSnippet}
 })();
 </script>
 `;
