@@ -16,6 +16,7 @@ export * from './events/index.js';
 export * from './security/index.js';
 export * from './testing/index.js';
 export * from './localization/index.js';
+export * from './errors/index.js';
 export * from './version.js';
 
 

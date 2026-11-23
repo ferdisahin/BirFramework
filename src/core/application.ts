@@ -6,6 +6,7 @@ import { Router, defaultRouter } from '../router/router.js';
 import { Container, app as defaultContainer } from '../container/container.js';
 import { serveStatic } from '../http/static.js';
 import { sessionMiddleware } from '../auth/session.js';
+import { ErrorHandler } from '../errors/handler.js';
 import '../core/env.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -117,7 +118,7 @@ export class Application {
       } else {
         const handled = await this.router.dispatch(ctx);
         if (!handled && !ctx.res.writableEnded) {
-          ctx.json({ error: 'Not Found', path: ctx.path, method: ctx.method }, 404);
+          ErrorHandler.handleNotFound(ctx);
         }
       }
     };
@@ -125,22 +126,7 @@ export class Application {
     try {
       await dispatch(0);
     } catch (err: any) {
-      if (!ctx.res.writableEnded) {
-        if (err.name === 'ValidationError') {
-          ctx.json({ message: err.message, errors: err.errors }, 422);
-          return;
-        }
-        if (err.name === 'AuthorizationError') {
-          ctx.json({ message: err.message, error: 'Forbidden' }, 403);
-          return;
-        }
-        console.error(`[BirFramework Error]`, err);
-        ctx.json({
-          error: 'Internal Server Error',
-          message: err.message,
-          stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
-        }, 500);
-      }
+      await ErrorHandler.handleException(ctx, err);
     }
   }
 
