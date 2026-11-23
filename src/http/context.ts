@@ -181,6 +181,15 @@ export class Context {
   }
 
   /**
+   * Redirect to a URL
+   */
+  public redirect(url: string, statusCode: number = 302): void {
+    this.status(statusCode);
+    this.header('Location', url);
+    this.res.end();
+  }
+
+  /**
    * Render a view template with data (views/...)
    */
   public render(templateName: string, data: Record<string, any> = {}, statusCode?: number): void {

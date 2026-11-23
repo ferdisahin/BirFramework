@@ -52,6 +52,14 @@ export class Faker {
     return result.slice(0, length);
   }
 
+  public paragraph(sentencesCount: number = 3): string {
+    const list: string[] = [];
+    for (let i = 0; i < sentencesCount; i++) {
+      list.push(this.sentence(8));
+    }
+    return list.join(' ');
+  }
+
   public date(pastDays: number = 30): Date {
     const now = Date.now();
     const past = now - Math.floor(Math.random() * pastDays * 86400 * 1000);

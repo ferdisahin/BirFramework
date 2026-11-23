@@ -16,10 +16,16 @@ export class QueryBuilder<T = any> {
   private limitCount?: number;
   private offsetCount?: number;
   private connection: DatabaseConnection;
+  private modelClass?: new (attributes: any, exists: boolean) => T;
 
-  constructor(tableName: string, connection: DatabaseConnection = dbConnection) {
+  constructor(
+    tableName: string,
+    connection: DatabaseConnection = dbConnection,
+    modelClass?: new (attributes: any, exists: boolean) => T
+  ) {
     this.tableName = tableName;
     this.connection = connection;
+    this.modelClass = modelClass;
   }
 
   public select(...columns: string[]): this {
@@ -80,7 +86,11 @@ export class QueryBuilder<T = any> {
 
   public async get(): Promise<T[]> {
     const { sql, params } = this.toSql();
-    return this.connection.query<T>(sql, params);
+    const rows = await this.connection.query<any>(sql, params);
+    if (this.modelClass) {
+      return rows.map((r) => new this.modelClass!(r, true));
+    }
+    return rows as T[];
   }
 
   public async first(): Promise<T | null> {
@@ -88,7 +98,12 @@ export class QueryBuilder<T = any> {
     this.limitCount = 1;
     const { sql, params } = this.toSql();
     this.limitCount = originalLimit;
-    return this.connection.queryOne<T>(sql, params);
+    const row = await this.connection.queryOne<any>(sql, params);
+    if (!row) return null;
+    if (this.modelClass) {
+      return new this.modelClass(row, true);
+    }
+    return row as T;
   }
 
   public async find(id: any): Promise<T | null> {

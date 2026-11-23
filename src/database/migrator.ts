@@ -2,9 +2,9 @@ import { readdirSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { dbConnection, type DatabaseConnection } from './connection.js';
 
-export interface Migration {
-  up(): Promise<void> | void;
-  down(): Promise<void> | void;
+export abstract class Migration {
+  abstract up(): Promise<void> | void;
+  abstract down(): Promise<void> | void;
 }
 
 export class Migrator {
@@ -74,7 +74,11 @@ export class Migrator {
     for (const file of pending) {
       const fullPath = join(this.migrationsDir, file);
       const mod = await import(fullPath);
-      const migration: Migration = mod.default || mod;
+      let migration: any = mod.default || mod;
+
+      if (typeof migration === 'function') {
+        migration = new migration();
+      }
 
       if (typeof migration.up === 'function') {
         await migration.up();
@@ -110,7 +114,10 @@ export class Migrator {
       const fullPath = join(this.migrationsDir, record.name);
       if (existsSync(fullPath)) {
         const mod = await import(fullPath);
-        const migration: Migration = mod.default || mod;
+        let migration: any = mod.default || mod;
+        if (typeof migration === 'function') {
+          migration = new migration();
+        }
         if (typeof migration.down === 'function') {
           await migration.down();
         }

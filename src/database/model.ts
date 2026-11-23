@@ -97,7 +97,7 @@ export class Model {
 
   public static rawQuery<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
     const tableName = this.getTableName();
-    return new QueryBuilder(tableName, dbConnection);
+    return new QueryBuilder(tableName, dbConnection, this as any);
   }
 
   public static query<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
@@ -135,14 +135,28 @@ export class Model {
   }
 
   public static async all<M extends typeof Model>(this: M): Promise<InstanceType<M>[]> {
-    const rows = await this.query().get();
-    return rows.map((r: any) => new this(r, true) as InstanceType<M>);
+    return this.query().get();
+  }
+
+  public static async first<M extends typeof Model>(this: M): Promise<InstanceType<M> | null> {
+    return this.query().first();
+  }
+
+  public static async firstWhere<M extends typeof Model>(
+    this: M,
+    column: string,
+    operatorOrValue: any,
+    value?: any
+  ): Promise<InstanceType<M> | null> {
+    return this.where(column, operatorOrValue, value).first();
+  }
+
+  public static async count<M extends typeof Model>(this: M): Promise<number> {
+    return this.query().count();
   }
 
   public static async find<M extends typeof Model>(this: M, id: any): Promise<InstanceType<M> | null> {
-    const row = await this.query().where(this.primaryKey, '=', id).first();
-    if (!row) return null;
-    return new this(row, true) as InstanceType<M>;
+    return this.query().where(this.primaryKey, '=', id).first();
   }
 
   public static async create<M extends typeof Model>(this: M, data: Record<string, any>): Promise<InstanceType<M>> {
@@ -155,9 +169,7 @@ export class Model {
     this: M,
     options: PaginationOptions = {}
   ): Promise<LengthAwarePaginator<InstanceType<M>>> {
-    const paginated = await this.query().paginate(options);
-    const models = paginated.data.map((r: any) => new this(r, true) as InstanceType<M>);
-    return new (paginated.constructor as any)(models, paginated.meta.total, paginated.meta.perPage, paginated.meta.currentPage, paginated.path);
+    return this.query().paginate(options);
   }
 
   public async save(): Promise<this> {
