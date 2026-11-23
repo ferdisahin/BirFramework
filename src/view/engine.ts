@@ -100,21 +100,54 @@ export class ViewEngine {
       // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
       output = this.compileLegacyLayouts(output, data);
 
-      // 3. Loops: @foreach(item in list) or @for(item of list) ... @endforeach / @endfor
-      const loopRegex = /@(foreach|for)\s*\(\s*(?:const\s+)?([a-zA-Z0-9_]+)\s+(?:in|of)\s+([a-zA-Z0-9_.]+)\s*\)([\s\S]*?)@(endforeach|endfor)/g;
-      output = output.replace(loopRegex, (_, __, itemVar, listVar, innerContent) => {
+      // 3. Loops: Support both Laravel Blade (@foreach($items as $item) or @foreach($items as $key => $item))
+      // and JavaScript/Python style (@foreach(item in items) or @for(item of items))
+      const loopRegex = /@(foreach|for)\s*\(([\s\S]*?)\)([\s\S]*?)@(endforeach|endfor)/g;
+      output = output.replace(loopRegex, (_, __, expr, innerContent) => {
+        const trimmed = expr.trim();
+        let listVar = '';
+        let itemVar = '';
+        let keyVar: string | undefined;
+
+        // Check for Laravel style: "list as item" or "list as key => item"
+        if (/\bas\b/i.test(trimmed)) {
+          const parts = trimmed.split(/\bas\b/i);
+          listVar = parts[0].trim().replace(/^\$/, '');
+          const right = parts[1].trim();
+          if (right.includes('=>')) {
+            const [k, v] = right.split('=>').map((s: string) => s.trim().replace(/^\$/, ''));
+            keyVar = k;
+            itemVar = v;
+          } else {
+            itemVar = right.replace(/^\$/, '');
+          }
+        } else {
+          // JS / Python style: "item in list" or "item of list" (optional "const")
+          const cleanExpr = trimmed.replace(/^const\s+/, '');
+          const match = cleanExpr.match(/^([a-zA-Z0-9_]+)\s+(?:in|of)\s+([a-zA-Z0-9_.]+)/);
+          if (match) {
+            itemVar = match[1].replace(/^\$/, '');
+            listVar = match[2].replace(/^\$/, '');
+          }
+        }
+
+        if (!listVar || !itemVar) return '';
+
         const list = this.resolveVariable(listVar, data);
         if (!Array.isArray(list)) return '';
 
         return list
           .map((item, index) => {
-            const itemScope = {
+            const itemScope: Record<string, any> = {
               ...data,
               [itemVar]: item,
               $index: index,
               $first: index === 0,
               $last: index === list.length - 1,
             };
+            if (keyVar) {
+              itemScope[keyVar] = index;
+            }
             return this.compile(innerContent, itemScope);
           })
           .join('');

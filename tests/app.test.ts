@@ -141,6 +141,30 @@ describe('BirFramework View Engine & Directive Tests', () => {
     assert.ok(compiled.includes('<li>Keyboard</li>'));
   });
 
+  test('should support Laravel-style @foreach($items as $item) and key-value loops', () => {
+    const template = `
+      <ul>
+        @foreach($items as $key => $item)
+          <li>{{ key }}: {{ item }}</li>
+        @endforeach
+      </ul>
+      <div>
+        @foreach($items as $item)
+          <span>{{ item }}</span>
+        @endforeach
+      </div>
+    `;
+
+    const compiled = defaultViewEngine.compile(template, {
+      items: ['Apple', 'Banana'],
+    });
+
+    assert.ok(compiled.includes('<li>0: Apple</li>'));
+    assert.ok(compiled.includes('<li>1: Banana</li>'));
+    assert.ok(compiled.includes('<span>Apple</span>'));
+    assert.ok(compiled.includes('<span>Banana</span>'));
+  });
+
   test('should support HTML escaping and unescaped {!! !!} raw tags', () => {
     const template = `Safe: {{ safe }} | Raw: {!! raw !!}`;
     const compiled = defaultViewEngine.compile(template, {
