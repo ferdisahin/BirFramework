@@ -467,3 +467,51 @@ export default app.serverless();
   console.log(`  \x1b[32mvercel\x1b[0m  \x1b[90m(or push to GitHub)\x1b[0m\n`);
 }
 
+export function makeProvider(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a provider name. E.g.: bir make:provider AppServiceProvider');
+    return;
+  }
+  try {
+    assertValidName(name);
+  } catch (err: any) {
+    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
+    return;
+  }
+
+  const cleanName = name.endsWith('ServiceProvider')
+    ? name
+    : (name.endsWith('Provider') ? `${name}` : `${name}ServiceProvider`);
+  const targetPath = resolve(process.cwd(), 'app/providers', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Provider ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const template = `import { ServiceProvider } from 'birframework';
+
+export class ${cleanName} extends ServiceProvider {
+  /**
+   * Register bindings or singletons in the IoC container.
+   */
+  public register(): void {
+    // Example: this.app.container.singleton('my_service', () => new MyService());
+  }
+
+  /**
+   * Bootstrap application services or routes when the app boots.
+   */
+  public async boot(): Promise<void> {
+    // Example: this.app.router.get('/plugin-route', (ctx) => ctx.json({ active: true }));
+  }
+}
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Service Provider created successfully:\x1b[0m app/providers/${cleanName}.ts`);
+}
+

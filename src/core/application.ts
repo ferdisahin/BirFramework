@@ -9,6 +9,7 @@ import { securityHeaders } from '../http/middlewares.js';
 import { sessionMiddleware } from '../auth/session.js';
 import { ErrorHandler } from '../errors/handler.js';
 import { Broadcast } from '../broadcasting/index.js';
+import { ServiceProvider, type Plugin, type ServiceProviderClass } from './provider.js';
 import '../core/env.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -24,6 +25,9 @@ export class Application {
   private server: Server | null = null;
   private liveClients = new Set<(msg: string) => void>();
   private fileWatcherInitialized: boolean = false;
+  private providers: ServiceProvider[] = [];
+  public booted: boolean = false;
+  private isBooting: boolean = false;
 
   constructor(options: ApplicationOptions = {}) {
     this.router = options.router || new Router(defaultRouter);
@@ -108,7 +112,89 @@ export class Application {
     return this;
   }
 
+  /**
+   * Register a ServiceProvider class, instance, or plugin function into the application.
+   */
+  public register(plugin: Plugin, options?: any): this {
+    if (typeof plugin === 'function') {
+      if (plugin.prototype && plugin.prototype instanceof ServiceProvider) {
+        const ProviderClass = plugin as ServiceProviderClass;
+        const instance = new ProviderClass(this);
+        return this.registerProvider(instance);
+      } else {
+        // Plugin function: (app, options) => void | Promise<void>
+        const result = (plugin as any)(this, options);
+        if (result && typeof result.then === 'function') {
+          result.catch((err: any) => {
+            console.error('[BirFramework] Plugin registration error:', err);
+          });
+        }
+        return this;
+      }
+    } else if (plugin instanceof ServiceProvider) {
+      return this.registerProvider(plugin);
+    }
+
+    throw new Error('[BirFramework] Invalid plugin provided to app.register(). Expected a ServiceProvider or Plugin function.');
+  }
+
+  private registerProvider(provider: ServiceProvider): this {
+    this.providers.push(provider);
+    const regResult = provider.register();
+    if (regResult && typeof (regResult as any).then === 'function') {
+      (regResult as any).catch((err: any) => {
+        console.error(`[BirFramework] Provider registration error in ${provider.constructor.name}:`, err);
+      });
+    }
+
+    // If app is already booted, boot this newly registered provider immediately
+    if (this.booted) {
+      const bootResult = provider.boot();
+      if (bootResult && typeof (bootResult as any).then === 'function') {
+        (bootResult as any).catch((err: any) => {
+          console.error(`[BirFramework] Provider boot error in ${provider.constructor.name}:`, err);
+        });
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Boot the application and all registered Service Providers.
+   */
+  public async boot(): Promise<void> {
+    if (this.booted || this.isBooting) return;
+    this.isBooting = true;
+
+    try {
+      for (const provider of this.providers) {
+        await provider.boot();
+      }
+      this.booted = true;
+    } finally {
+      this.isBooting = false;
+    }
+  }
+
+  /**
+   * Get an active registered ServiceProvider instance by its class.
+   */
+  public getProvider<T extends ServiceProvider>(providerClass: new (...args: any[]) => T): T | undefined {
+    return this.providers.find((p) => p instanceof providerClass) as T | undefined;
+  }
+
+  /**
+   * List all registered ServiceProviders.
+   */
+  public getProviders(): readonly ServiceProvider[] {
+    return this.providers;
+  }
+
   public async handle(ctxOrReq: Context | IncomingMessage, maybeRes?: ServerResponse): Promise<void> {
+    if (!this.booted) {
+      await this.boot();
+    }
     const ctx = ctxOrReq instanceof Context ? ctxOrReq : new Context(ctxOrReq, maybeRes!);
     let index = -1;
     const middlewares = this.globalMiddlewares;

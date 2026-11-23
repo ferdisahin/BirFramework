@@ -1,0 +1,3 @@
+module.exports=[18622,(a,b,c)=>{b.exports=a.x("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js",()=>require("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js"))},18593,a=>{"use strict";var b=a.i(38947);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{children:a})})},"metadata",0,{title:"Next.js SSR Benchmark"}])},28063,function(a){a.n(a.i(18593))},85221,(a,b,c)=>{"use strict";b.exports=a.r(18622)},38947,(a,b,c)=>{"use strict";b.exports=a.r(85221).vendored["react-rsc"].ReactJsxRuntime}];
+
+//# sourceMappingURL=%5Broot-of-the-server%5D__1-j5oxou0kuj2._.js.map

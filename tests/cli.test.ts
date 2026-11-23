@@ -140,4 +140,26 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       }
     }
   });
+
+  test('should scaffold Service Provider via makeProvider', async () => {
+    const { makeProvider } = await import('../src/cli/commands/make.js');
+    const targetFile = resolve(process.cwd(), 'app/providers/PaymentServiceProvider.ts');
+
+    try {
+      makeProvider('Payment');
+      assert.strictEqual(existsSync(targetFile), true);
+      const content = readFileSync(targetFile, 'utf-8');
+      assert.match(content, /class PaymentServiceProvider extends ServiceProvider/);
+      assert.match(content, /public register\(\): void/);
+      assert.match(content, /public async boot\(\): Promise<void>/);
+    } finally {
+      if (existsSync(targetFile)) {
+        rmSync(targetFile, { force: true });
+      }
+      const providersDir = resolve(process.cwd(), 'app/providers');
+      if (existsSync(providersDir)) {
+        rmSync(providersDir, { recursive: true, force: true });
+      }
+    }
+  });
 });
