@@ -66,6 +66,49 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.match(welcomeHtml, /routes\/web\.js/);
   });
 
+  test('should scaffold project with Hotwire Turbo when chosen', async () => {
+    const testHotwireApp = resolve(process.cwd(), 'test-hotwire-app');
+    try {
+      await createNewProject('test-hotwire-app', 'ts', 'tailwind', 'hotwire');
+
+      assert.strictEqual(existsSync(resolve(testHotwireApp, 'package.json')), true);
+      assert.strictEqual(existsSync(resolve(testHotwireApp, 'resources/js/app.js')), true);
+      assert.strictEqual(existsSync(resolve(testHotwireApp, 'vite.config.js')), true);
+
+      const pkg = JSON.parse(readFileSync(resolve(testHotwireApp, 'package.json'), 'utf-8'));
+      assert.ok(pkg.dependencies['@hotwired/turbo']);
+      assert.ok(pkg.devDependencies['vite']);
+
+      const jsContent = readFileSync(resolve(testHotwireApp, 'resources/js/app.js'), 'utf-8');
+      assert.match(jsContent, /@hotwired\/turbo/);
+
+      const layoutHtml = readFileSync(resolve(testHotwireApp, 'views/layouts/app.html'), 'utf-8');
+      assert.match(layoutHtml, /@vite/);
+      assert.doesNotMatch(layoutHtml, /bir_scripts/);
+    } finally {
+      if (existsSync(testHotwireApp)) {
+        rmSync(testHotwireApp, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('should scaffold project with None navigation engine when chosen', async () => {
+    const testNoneApp = resolve(process.cwd(), 'test-none-app');
+    try {
+      await createNewProject('test-none-app', 'ts', 'tailwind', 'none');
+
+      const pkg = JSON.parse(readFileSync(resolve(testNoneApp, 'package.json'), 'utf-8'));
+      assert.strictEqual(pkg.dependencies['@hotwired/turbo'], undefined);
+
+      const layoutHtml = readFileSync(resolve(testNoneApp, 'views/layouts/app.html'), 'utf-8');
+      assert.doesNotMatch(layoutHtml, /bir_scripts/);
+    } finally {
+      if (existsSync(testNoneApp)) {
+        rmSync(testNoneApp, { recursive: true, force: true });
+      }
+    }
+  });
+
   test('should scaffold complete authentication system via make:auth / scaffoldAuth', async () => {
     const { scaffoldAuth } = await import('../src/cli/commands/auth.js');
     const testAuthApp = resolve(process.cwd(), 'test-auth-app');

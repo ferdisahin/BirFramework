@@ -8,6 +8,7 @@ export interface NewProjectOptions {
   name: string;
   lang?: 'ts' | 'js';
   css?: 'tailwind' | 'css';
+  turbo?: 'hotwire' | 'birturbo' | 'none';
 }
 
 async function askQuestion(query: string): Promise<string> {
@@ -28,7 +29,8 @@ async function askQuestion(query: string): Promise<string> {
 export async function createNewProject(
   name?: string,
   lang?: 'ts' | 'js',
-  css?: 'tailwind' | 'css'
+  css?: 'tailwind' | 'css',
+  turbo?: 'hotwire' | 'birturbo' | 'none'
 ) {
   // 1. Resolve project name
   if (!name && process.stdin.isTTY) {
@@ -36,7 +38,7 @@ export async function createNewProject(
   }
 
   if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify a project name. E.g.: bir new my-app [--ts|--js] [--tailwind|--css]');
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a project name. E.g.: bir new my-app [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo]');
     return;
   }
 
@@ -64,7 +66,7 @@ export async function createNewProject(
   if (!css) {
     if (process.stdin.isTTY) {
       console.log('\n\x1b[1mSelect styling:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m Tailwind CSS \x1b[90m(Default, Recommended - Modern Utility-First)\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Tailwind CSS \x1b[90m(Default, Recommended - Modern Utility-First v4)\x1b[0m');
       console.log('  \x1b[32m2)\x1b[0m Pure CSS \x1b[90m(Vanilla CSS without build step or CDN)\x1b[0m');
       const cssChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
       css = cssChoice === '2' ? 'css' : 'tailwind';
@@ -73,13 +75,30 @@ export async function createNewProject(
     }
   }
 
+  // 4. Resolve SPA navigation engine (Interactive defaults to Hotwire; Non-TTY defaults to BirTurbo)
+  if (!turbo) {
+    if (process.stdin.isTTY) {
+      console.log('\n\x1b[1mSelect SPA navigation engine:\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Hotwire Turbo \x1b[90m(Default, Recommended - Official 37signals Turbo 8)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m BirTurbo \x1b[90m(Zero-Dependency, Built-in Lightweight Engine)\x1b[0m');
+      console.log('  \x1b[32m3)\x1b[0m None \x1b[90m(Traditional Multi-Page MPA without SPA navigation)\x1b[0m');
+      const turboChoice = await askQuestion('\x1b[36mChoose [1-3] (default: 1):\x1b[0m ');
+      turbo = turboChoice === '2' ? 'birturbo' : turboChoice === '3' ? 'none' : 'hotwire';
+    } else {
+      turbo = 'birturbo';
+    }
+  }
+
   const isTS = lang === 'ts';
   const isTailwind = css === 'tailwind';
+  const isHotwire = turbo === 'hotwire';
+  const isBirTurbo = turbo === 'birturbo';
   const ext = isTS ? 'ts' : 'js';
 
-  console.log(`\n\x1b[36m🚀 Creating new BirFramework project: ${name}\x1b[0m`);
-  console.log(`\x1b[90m  • Language: ${isTS ? 'TypeScript (Strict)' : 'Pure JavaScript (ESM)'}\x1b[0m`);
-  console.log(`\x1b[90m  • Styling:  ${isTailwind ? 'Tailwind CSS (Default)' : 'Pure CSS'}\x1b[0m\n`);
+  console.log(`\n\x1b[36m🚀 Creating new BirJS project: ${name}\x1b[0m`);
+  console.log(`\x1b[90m  • Language:   ${isTS ? 'TypeScript (Strict)' : 'Pure JavaScript (ESM)'}\x1b[0m`);
+  console.log(`\x1b[90m  • Styling:    ${isTailwind ? 'Tailwind CSS (Default)' : 'Pure CSS'}\x1b[0m`);
+  console.log(`\x1b[90m  • Navigation: ${isHotwire ? 'Hotwire Turbo 8 (Official NPM)' : isBirTurbo ? 'BirTurbo (Built-in Zero-Dep)' : 'None (Traditional MPA)'}\x1b[0m\n`);
 
   // Create folder structure (Laravel-style)
   mkdirSync(join(projectDir, 'app/controllers'), { recursive: true });
@@ -94,27 +113,21 @@ export async function createNewProject(
   writeFileSync(join(projectDir, 'storage/cache/.gitkeep'), '', 'utf-8');
   writeFileSync(join(projectDir, 'storage/app/.gitkeep'), '', 'utf-8');
   writeFileSync(join(projectDir, 'storage/logs/.gitkeep'), '', 'utf-8');
+
   if (isTailwind) {
     mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
+    writeFileSync(join(projectDir, 'resources/css/app.css'), '@import "tailwindcss";\n', 'utf-8');
+  }
+
+  if (isHotwire) {
     mkdirSync(join(projectDir, 'resources/js'), { recursive: true });
     writeFileSync(join(projectDir, 'resources/js/app.js'), "import * as Turbo from '@hotwired/turbo';\n", 'utf-8');
   }
 
-  // 1. package.json
+  // 1. package.json scripts & dependencies
   const devScripts: Record<string, string> = {
     start: isTS ? 'npx tsx app.ts' : 'node app.js',
   };
-
-  if (isTailwind) {
-    devScripts['build:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify';
-    devScripts['watch:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch';
-    devScripts['dev'] = isTS
-      ? 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "npx tsx watch app.ts"'
-      : 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "node --watch app.js"';
-    devScripts['build'] = 'npm run build:css';
-  } else {
-    devScripts['dev'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
-  }
 
   const devDependencies: Record<string, string> = {};
   if (isTS) {
@@ -122,10 +135,61 @@ export async function createNewProject(
     devDependencies['@types/node'] = '^22.0.0';
     devDependencies['tsx'] = '^4.19.0';
   }
-  if (isTailwind) {
-    devDependencies['@tailwindcss/cli'] = '^4.0.0';
-    devDependencies['tailwindcss'] = '^4.0.0';
+
+  const dependencies: Record<string, string> = {
+    birframework: `^${VERSION}`,
+  };
+
+  if (isHotwire) {
+    dependencies['@hotwired/turbo'] = '^8.0.12';
+    devDependencies['vite'] = '^6.0.0';
     devDependencies['concurrently'] = '^9.1.0';
+    if (isTailwind) {
+      devDependencies['tailwindcss'] = '^4.0.0';
+      devDependencies['@tailwindcss/vite'] = '^4.0.0';
+    }
+
+    devScripts['dev'] = isTS
+      ? 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "vite" "npx tsx watch app.ts"'
+      : 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "vite" "node --watch app.js"';
+    devScripts['build'] = 'vite build';
+
+    const inputs: string[] = [];
+    if (isTailwind) inputs.push("'resources/css/app.css'");
+    inputs.push("'resources/js/app.js'");
+
+    const viteConfigContent = `import { defineConfig } from 'vite';
+${isTailwind ? "import tailwindcss from '@tailwindcss/vite';\n" : ''}
+export default defineConfig({
+  plugins: [${isTailwind ? 'tailwindcss()' : ''}],
+  build: {
+    manifest: true,
+    outDir: 'public/build',
+    rollupOptions: {
+      input: [${inputs.join(', ')}],
+    },
+  },
+  server: {
+    origin: 'http://localhost:5173',
+  },
+});
+`;
+    writeFileSync(join(projectDir, 'vite.config.js'), viteConfigContent, 'utf-8');
+  } else {
+    // BirTurbo or None
+    if (isTailwind) {
+      devDependencies['@tailwindcss/cli'] = '^4.0.0';
+      devDependencies['tailwindcss'] = '^4.0.0';
+      devDependencies['concurrently'] = '^9.1.0';
+      devScripts['build:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify';
+      devScripts['watch:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch';
+      devScripts['dev'] = isTS
+        ? 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "npx tsx watch app.ts"'
+        : 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "node --watch app.js"';
+      devScripts['build'] = 'npm run build:css';
+    } else {
+      devScripts['dev'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+    }
   }
 
   const pkg = {
@@ -133,10 +197,7 @@ export async function createNewProject(
     version: '1.0.0',
     type: 'module',
     scripts: devScripts,
-    dependencies: {
-      birframework: `^${VERSION}`,
-      '@hotwired/turbo': '^8.0.12',
-    },
+    dependencies,
     devDependencies,
   };
   writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2), 'utf-8');
@@ -193,7 +254,7 @@ Route.get('/api/health', (ctx) => {
 export class HomeController {
   public async index(ctx: Context) {
     return ctx.render('welcome', {
-      title: 'BirFramework',
+      title: 'BirJS',
       version: '${VERSION}',
       nodeVersion: process.version,
     });
@@ -203,7 +264,7 @@ export class HomeController {
     : `export class HomeController {
   async index(ctx) {
     return ctx.render('welcome', {
-      title: 'BirFramework',
+      title: 'BirJS',
       version: '${VERSION}',
       nodeVersion: process.version,
     });
@@ -212,11 +273,7 @@ export class HomeController {
 `;
   writeFileSync(join(projectDir, `app/controllers/HomeController.${ext}`), controllerContent, 'utf-8');
 
-  // 5. resources/css/app.css (Tailwind source) & public/css/app.css
-  if (isTailwind) {
-    writeFileSync(join(projectDir, 'resources/css/app.css'), '@import "tailwindcss";\n', 'utf-8');
-  }
-
+  // 5. CSS files (always ensure public/css/app.css exists)
   const cssFileContent = isTailwind
     ? `/* Built with Tailwind CSS v4 */
 @import "tailwindcss";
@@ -358,19 +415,28 @@ footer {
   writeFileSync(join(projectDir, 'public/css/app.css'), cssFileContent, 'utf-8');
 
   // 6. views/layouts/app.html
+  let headAssets = '';
+  if (isHotwire) {
+    headAssets = isTailwind
+      ? "@vite(['resources/css/app.css', 'resources/js/app.js'])"
+      : `<link rel="stylesheet" href="/css/app.css">\n  @vite(['resources/js/app.js'])`;
+  } else {
+    headAssets = '<link rel="stylesheet" href="/css/app.css">';
+  }
+
+  const bodyScripts = isBirTurbo ? '\n  {!! bir_scripts() !!}' : '';
+
   const layoutContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="/css/app.css">
+  ${headAssets}
 </head>
 <body class="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
   {!! slot !!}
-  {!! after !!}
-
-  {!! bir_scripts() !!}
+  {!! after !!}${bodyScripts}
 </body>
 </html>
 `;
@@ -386,11 +452,11 @@ footer {
         <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
         </svg>
-        <span>BirFramework</span>
+        <span>BirJS (BirFramework)</span>
       </div>
       <nav class="flex items-center gap-6 text-sm text-zinc-400">
         <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition">GitHub</a>
-        <a href="#docs" class="hover:text-white transition">Documentation</a>
+        <a href="https://birjs.com" target="_blank" class="hover:text-white transition">Documentation</a>
       </nav>
     </header>
 
@@ -401,13 +467,13 @@ footer {
           Get started with your application
         </h1>
         <p class="text-zinc-400 text-sm leading-relaxed">
-          To begin building your application, edit <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">routes/web.ts</code> or the home controller at <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">app/controllers/HomeController.ts</code>.
+          To begin building your application, edit <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">routes/web.${ext}</code> or the home controller at <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">app/controllers/HomeController.${ext}</code>.
         </p>
       </div>
 
       <!-- Quick Links Grid -->
       <div class="grid sm:grid-cols-2 gap-4 mt-12">
-        <a href="#" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
+        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
           <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
             Documentation
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
@@ -417,7 +483,7 @@ footer {
           </p>
         </a>
 
-        <a href="#" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
+        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
           <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
             Routing & Views
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
@@ -427,7 +493,7 @@ footer {
           </p>
         </a>
 
-        <a href="#" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
+        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
           <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
             Database & ORM
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
@@ -437,7 +503,7 @@ footer {
           </p>
         </a>
 
-        <a href="#" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
+        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
           <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
             Queues & Scheduler
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
@@ -452,7 +518,7 @@ footer {
     <!-- Footer -->
     <footer class="pt-8 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
       <div>
-        BirFramework v{{ version }}
+        BirJS (BirFramework) v{{ version }}
       </div>
       <div>
         Node.js {{ nodeVersion }}
@@ -469,11 +535,11 @@ footer {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
         </svg>
-        <span>BirFramework</span>
+        <span>BirJS (BirFramework)</span>
       </div>
       <nav>
         <a href="https://github.com/ferdisahin/BirFramework" target="_blank">GitHub</a>
-        <a href="#docs">Documentation</a>
+        <a href="https://birjs.com" target="_blank">Documentation</a>
       </nav>
     </header>
 
@@ -481,26 +547,26 @@ footer {
     <main>
       <h1>Get started with your application</h1>
       <p class="lead">
-        To begin building your application, edit <code>routes/web.js</code> or the home controller at <code>app/controllers/HomeController.js</code>.
+        To begin building your application, edit <code>routes/web.${ext}</code> or the home controller at <code>app/controllers/HomeController.${ext}</code>.
       </p>
 
       <div class="grid">
-        <a href="#" class="card">
+        <a href="https://birjs.com" target="_blank" class="card">
           <h2>Documentation <span>&rarr;</span></h2>
           <p>API reference, configuration options, and architectural guides.</p>
         </a>
 
-        <a href="#" class="card">
+        <a href="https://birjs.com" target="_blank" class="card">
           <h2>Routing & Views <span>&rarr;</span></h2>
           <p>Define web routes, controllers, middleware, and Blade component templates.</p>
         </a>
 
-        <a href="#" class="card">
+        <a href="https://birjs.com" target="_blank" class="card">
           <h2>Database & ORM <span>&rarr;</span></h2>
           <p>Active-record models, schema migrations, and multi-driver database queries.</p>
         </a>
 
-        <a href="#" class="card">
+        <a href="https://birjs.com" target="_blank" class="card">
           <h2>Queues & Scheduler <span>&rarr;</span></h2>
           <p>Dispatch background workers, handle failed jobs, and schedule cron tasks.</p>
         </a>
@@ -509,7 +575,7 @@ footer {
 
     <!-- Footer -->
     <footer>
-      <div>BirFramework v{{ version }}</div>
+      <div>BirJS (BirFramework) v{{ version }}</div>
       <div>Node.js {{ nodeVersion }}</div>
     </footer>
   </div>
@@ -526,7 +592,7 @@ app.use(logger());
 
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, '0.0.0.0', (port) => {
-  console.log(\`BirFramework ready at http://localhost:\${port || PORT}\`);
+  console.log(\`BirJS ready at http://localhost:\${port || PORT}\`);
 });
 `;
   writeFileSync(join(projectDir, `app.${ext}`), appContent, 'utf-8');

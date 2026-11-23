@@ -224,7 +224,12 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       const hasTailwind = args.includes('--tailwind');
       const css = hasCss ? 'css' : hasTailwind ? 'tailwind' : undefined;
 
-      await createNewProject(name, lang, css);
+      const hasHotwire = args.includes('--hotwire');
+      const hasBirTurbo = args.includes('--birturbo') || args.includes('--bir-turbo');
+      const hasNoTurbo = args.includes('--no-turbo') || args.includes('--none');
+      const turbo = hasNoTurbo ? 'none' : hasBirTurbo ? 'birturbo' : hasHotwire ? 'hotwire' : undefined;
+
+      await createNewProject(name, lang, css, turbo);
       break;
     }
 
@@ -240,7 +245,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       '\x1b[0m');
       console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
-      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css]\x1b[0m Create a new project (Tailwind default)');
+      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo]\x1b[0m Create a new project');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
       console.log('  \x1b[32mtest [filter]\x1b[0m             Run application automated test suites');
       console.log('  \x1b[32mtinker\x1b[0m                    Start interactive REPL console with auto-loaded models');
