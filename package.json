@@ -1,6 +1,6 @@
 {
   "name": "birframework",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Next-Gen Full-Stack Framework with Laravel DX and Modern TypeScript Type-Safety",
   "type": "module",
   "main": "./dist/index.js",
@@ -38,7 +38,13 @@
     "bir": "tsx src/cli/index.ts",
     "dev:example": "tsx example/app.ts"
   },
-  "keywords": ["framework", "laravel", "typescript", "fullstack", "type-safe"],
+  "keywords": [
+    "framework",
+    "laravel",
+    "typescript",
+    "fullstack",
+    "type-safe"
+  ],
   "license": "MIT",
   "author": "Ferdi Sahin",
   "repository": {
