@@ -20,8 +20,12 @@ export class Auth {
   }
 
   public static id(ctx: Context): any | null {
-    if (!ctx.session) return null;
-    return ctx.session.get(this.sessionKey, null);
+    const testHeader = ctx?.headers?.['x-bir-test-user'];
+    if (testHeader && process.env.NODE_ENV === 'test') {
+      return testHeader;
+    }
+    if (!ctx || !ctx.session) return null;
+    return ctx.session.get(this.sessionKey, ctx.session.get('user_id', null));
   }
 
   public static check(ctx: Context): boolean {

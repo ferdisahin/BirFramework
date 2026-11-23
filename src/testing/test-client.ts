@@ -71,8 +71,12 @@ export class TestClient {
   }
 
   private updateCookies(response: Response): void {
-    const setCookie = response.headers.get('set-cookie');
-    if (setCookie) {
+    const rawCookies: string[] = typeof (response.headers as any).getSetCookie === 'function'
+      ? (response.headers as any).getSetCookie()
+      : [response.headers.get('set-cookie')].filter(Boolean) as string[];
+
+    for (const setCookie of rawCookies) {
+      if (!setCookie) continue;
       const parts = setCookie.split(';');
       const [nameVal] = parts;
       if (nameVal && nameVal.includes('=')) {

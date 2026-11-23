@@ -7,6 +7,10 @@ export class TestResponse {
     private readonly _bodyText: string
   ) {}
 
+  public get body(): string {
+    return this._bodyText;
+  }
+
   public text(): string {
     return this._bodyText;
   }

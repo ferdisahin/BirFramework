@@ -39,6 +39,10 @@ export class Session {
     return this;
   }
 
+  public getFlash<T = any>(key: string, defaultValue?: T): T {
+    return this.get<T>(key, defaultValue);
+  }
+
   public has(key: string): boolean {
     return key in this.data || key in this.flashData;
   }
