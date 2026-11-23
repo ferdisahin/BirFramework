@@ -364,7 +364,7 @@ footer {
         <span>BirFramework</span>
       </div>
       <nav class="flex items-center gap-6 text-sm text-zinc-400">
-        <a href="https://github.com" target="_blank" class="hover:text-white transition">GitHub</a>
+        <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition">GitHub</a>
         <a href="#docs" class="hover:text-white transition">Documentation</a>
       </nav>
     </header>
@@ -447,7 +447,7 @@ footer {
         <span>BirFramework</span>
       </div>
       <nav>
-        <a href="https://github.com" target="_blank">GitHub</a>
+        <a href="https://github.com/ferdisahin/BirFramework" target="_blank">GitHub</a>
         <a href="#docs">Documentation</a>
       </nav>
     </header>

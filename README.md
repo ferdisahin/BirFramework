@@ -1,5 +1,9 @@
 # BirFramework
 
+[![npm version](https://img.shields.io/npm/v/birframework.svg)](https://www.npmjs.com/package/birframework)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-ferdisahin%2FBirFramework-black.svg)](https://github.com/ferdisahin/BirFramework)
+
 BirFramework is a full-stack web framework for Node.js and TypeScript. It brings Laravel's architectural ergonomics and developer experience into a modern, persistent-memory JavaScript runtime, providing a cohesive set of tools without requiring dozens of disparate dependencies.
 
 ## Design Philosophy

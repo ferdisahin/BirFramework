@@ -40,6 +40,15 @@
   },
   "keywords": ["framework", "laravel", "typescript", "fullstack", "type-safe"],
   "license": "MIT",
+  "author": "Ferdi Sahin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferdisahin/BirFramework.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ferdisahin/BirFramework/issues"
+  },
+  "homepage": "https://github.com/ferdisahin/BirFramework#readme",
   "devDependencies": {
     "@types/node": "^22.13.0",
     "tsx": "^4.19.3",
