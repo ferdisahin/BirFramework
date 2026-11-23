@@ -1,7 +1,18 @@
-import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { createRequire } from 'node:module';
 import type { DatabaseDriver, DatabaseDialect, QueryResult } from './driver.js';
+
+const require = createRequire(import.meta.url);
+
+function getSqliteClass(): any {
+  try {
+    const mod = require('node:sqlite');
+    return mod.DatabaseSync;
+  } catch {
+    return null;
+  }
+}
 
 export interface SqliteConfig {
   database?: string;
@@ -9,7 +20,7 @@ export interface SqliteConfig {
 
 export class SqliteDriver implements DatabaseDriver {
   public readonly dialect: DatabaseDialect = 'sqlite';
-  private db: DatabaseSync | null = null;
+  private db: any = null;
   private databasePath: string;
 
   constructor(config: SqliteConfig = {}) {
@@ -18,6 +29,14 @@ export class SqliteDriver implements DatabaseDriver {
 
   public connect(): void {
     if (this.db) return;
+
+    const DatabaseSync = getSqliteClass();
+    if (!DatabaseSync) {
+      throw new Error(
+        '[BirFramework] Built-in "node:sqlite" is not available in your current Node.js environment. ' +
+        'Please ensure you are running Node.js >= 22.5.0.'
+      );
+    }
 
     if (this.databasePath !== ':memory:') {
       const fullPath = resolve(process.cwd(), this.databasePath);
@@ -34,7 +53,7 @@ export class SqliteDriver implements DatabaseDriver {
     }
   }
 
-  private getDb(): DatabaseSync {
+  private getDb(): any {
     if (!this.db) {
       this.connect();
     }
