@@ -14,6 +14,12 @@ async function askQuestion(query: string): Promise<string> {
   const rl = readline.createInterface({ input, output });
   try {
     return (await rl.question(query)).trim();
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') {
+      console.log('\n\x1b[90mOperation cancelled.\x1b[0m\n');
+      process.exit(0);
+    }
+    throw err;
   } finally {
     rl.close();
   }

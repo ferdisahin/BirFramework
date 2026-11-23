@@ -14,6 +14,11 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export async function runCLI(args: string[] = process.argv.slice(2)) {
+  process.on('SIGINT', () => {
+    console.log('\n\x1b[90mOperation cancelled.\x1b[0m\n');
+    process.exit(0);
+  });
+
   const command = args[0] || 'help';
 
   switch (command) {
