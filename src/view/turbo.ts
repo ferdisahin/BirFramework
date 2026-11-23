@@ -103,8 +103,26 @@ export function birScripts(): string {
         window.scrollTo(0, 0);
         finishProgress();
 
-        // Dispatch page loaded event for custom scripts
-        window.dispatchEvent(new CustomEvent('bir:load', { detail: { url: url } }));
+        // 6. Execute newly injected scripts inside body
+        Array.from(document.body.querySelectorAll('script')).forEach(function(oldScript) {
+          if (oldScript.id === 'bir-turbo-script') return;
+          var newScript = document.createElement('script');
+          Array.from(oldScript.attributes).forEach(function(attr) {
+            newScript.setAttribute(attr.name, attr.value);
+          });
+          newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+          if (oldScript.parentNode) {
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+          }
+        });
+
+        // 7. Dispatch lifecycle events for custom and Turbo listeners
+        var evDetail = { detail: { url: url } };
+        window.dispatchEvent(new CustomEvent('bir:load', evDetail));
+        document.dispatchEvent(new CustomEvent('bir:load', evDetail));
+        window.dispatchEvent(new CustomEvent('turbo:load', evDetail));
+        document.dispatchEvent(new CustomEvent('turbo:load', evDetail));
+        document.dispatchEvent(new CustomEvent('turbo:render', evDetail));
       })
       .catch(function() {
         finishProgress();

@@ -290,7 +290,16 @@ export class ViewEngine {
       const key = match[1];
       if (!key) continue;
 
-      const val = match[2] !== undefined ? match[2] : match[3] !== undefined ? match[3] : true;
+      let val = match[2] !== undefined ? match[2] : match[3] !== undefined ? match[3] : true;
+
+      // Interpolate {{ var }} in attribute values like title="{{ title }}" or slug="{{ slug }}"
+      if (typeof val === 'string' && val.includes('{{')) {
+        val = val.replace(/\{\{\s*([a-zA-Z0-9_$.]+)\s*\}\}/g, (_, varName) => {
+          const clean = varName.replace(/^\$/, '');
+          const resolved = this.resolveVariable(clean, scope);
+          return resolved !== undefined && resolved !== null ? String(resolved) : '';
+        });
+      }
 
       // Handle dynamic bound prop :prop="expr"
       if (key.startsWith(':')) {
