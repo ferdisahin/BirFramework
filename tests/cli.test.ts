@@ -29,6 +29,10 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     const layoutHtml = readFileSync(resolve(testTailwindApp, 'views/layouts/app.html'), 'utf-8');
     assert.match(layoutHtml, /cdn\.tailwindcss\.com/);
     assert.match(layoutHtml, /bir_scripts/);
+
+    const welcomeHtml = readFileSync(resolve(testTailwindApp, 'views/welcome.html'), 'utf-8');
+    assert.match(welcomeHtml, /Instant Turbo SPA/);
+    assert.match(welcomeHtml, /bg-gradient-to-r/);
   });
 
   test('should scaffold JavaScript project with Pure CSS when requested', async () => {
@@ -42,10 +46,14 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
 
     const cssContent = readFileSync(resolve(testCssApp, 'public/css/app.css'), 'utf-8');
     assert.match(cssContent, /--bg-color/);
-    assert.match(cssContent, /\.card-main/);
+    assert.match(cssContent, /\.feature-card/);
 
     const layoutHtml = readFileSync(resolve(testCssApp, 'views/layouts/app.html'), 'utf-8');
     assert.doesNotMatch(layoutHtml, /cdn\.tailwindcss\.com/);
     assert.match(layoutHtml, /href="\/css\/app\.css"/);
+
+    const welcomeHtml = readFileSync(resolve(testCssApp, 'views/welcome.html'), 'utf-8');
+    assert.match(welcomeHtml, /Instant Turbo SPA/);
+    assert.match(welcomeHtml, /Multi-Driver ORM/);
   });
 });
