@@ -79,6 +79,30 @@ export class ViewEngine {
     try {
       let output = template;
 
+      // 0. Process @verbatim ... @endverbatim for code blocks and raw snippets (Laravel Blade standard)
+      output = output.replace(/@verbatim([\s\S]*?)@endverbatim/g, (_, raw) => {
+        const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+        this.rawBlocks.set(token, raw);
+        return token;
+      });
+
+      // 0.1 Process escaped Blade syntax: @{{ var }}, @{!! raw !!}, @@directive
+      output = output.replace(/@(\{\{[\s\S]*?\}\})/g, (_, braces) => {
+        const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+        this.rawBlocks.set(token, braces);
+        return token;
+      });
+      output = output.replace(/@(\{!![\s\S]*?!!\})/g, (_, rawBraces) => {
+        const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+        this.rawBlocks.set(token, rawBraces);
+        return token;
+      });
+      output = output.replace(/@@([a-zA-Z]+)/g, (_, dir) => {
+        const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+        this.rawBlocks.set(token, `@${dir}`);
+        return token;
+      });
+
       // 1. Process Modern Blade Component Tags: <x-component.name ...>...</x-component.name>
       output = this.compileComponents(output, scope);
 

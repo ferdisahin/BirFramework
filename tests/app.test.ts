@@ -247,6 +247,26 @@ describe('BirFramework View Engine & Directive Tests', () => {
     assert.ok(compiled.includes('<li>Second item</li>'));
     assert.ok(compiled.includes('<table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>bir new</td><td>Create app</td></tr></tbody></table>'));
   });
+
+  test('should support @verbatim and @{{ variable }} escaping for docs and code snippets', () => {
+    const template = `
+      <pre><code>@verbatim
+        <x-layouts.app title="{{ title }}">
+          @foreach(posts as post)
+            {{ post.title }}
+          @endforeach
+        </x-layouts.app>
+      @endverbatim</code></pre>
+      <div>@{{ escapedVar }} and @@foreach</div>
+    `;
+
+    const compiled = defaultViewEngine.compile(template, { title: 'Ignored Title', escapedVar: 'Ignored' });
+    assert.ok(compiled.includes('<x-layouts.app title="{{ title }}">'));
+    assert.ok(compiled.includes('@foreach(posts as post)'));
+    assert.ok(compiled.includes('{{ post.title }}'));
+    assert.ok(compiled.includes('{{ escapedVar }}'));
+    assert.ok(compiled.includes('@foreach'));
+  });
 });
 
 describe('BirFramework Pagination Tests', () => {
