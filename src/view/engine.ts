@@ -1,0 +1,270 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { birScripts } from './turbo.js';
+
+export interface ViewEngineOptions {
+  viewsDir?: string;
+  cache?: boolean;
+}
+
+export class ViewEngine {
+  private viewsDir: string;
+  private templateCache = new Map<string, string>();
+
+  constructor(options: ViewEngineOptions = {}) {
+    this.viewsDir = options.viewsDir || resolve(process.cwd(), 'views');
+  }
+
+  public render(templateName: string, data: Record<string, any> = {}): string {
+    const rawTemplate = this.loadTemplate(templateName);
+    return this.compile(rawTemplate, data);
+  }
+
+  public loadTemplate(name: string): string {
+    const cleanName = name.replace(/\.(html|bir|blade\.php)$/, '').replace(/\./g, '/');
+    const possiblePaths = [
+      join(this.viewsDir, `${cleanName}.html`),
+      join(this.viewsDir, `${cleanName}.bir`),
+      join(this.viewsDir, 'components', `${cleanName}.html`),
+      join(this.viewsDir, `${cleanName}.view`),
+    ];
+
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        return readFileSync(p, 'utf-8');
+      }
+    }
+
+    throw new Error(`[BirView] View template not found: "${name}" in ${this.viewsDir}`);
+  }
+
+  /**
+   * Modern Blade-style Component & Directive Compiler
+   */
+  public compile(template: string, data: Record<string, any> = {}): string {
+    let output = template;
+
+    // 1. Process Modern Blade Component Tags: <x-component.name ...>...</x-component.name>
+    output = this.compileComponents(output, data);
+
+    // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
+    output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
+    output = output.replace(/@birScripts/g, birScripts());
+
+    // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
+    output = this.compileLegacyLayouts(output, data);
+
+    // 3. Loops: @foreach(item in list) or @for(item of list) ... @endforeach / @endfor
+    const loopRegex = /@(foreach|for)\s*\(\s*(?:const\s+)?([a-zA-Z0-9_]+)\s+(?:in|of)\s+([a-zA-Z0-9_.]+)\s*\)([\s\S]*?)@(endforeach|endfor)/g;
+    output = output.replace(loopRegex, (_, __, itemVar, listVar, innerContent) => {
+      const list = this.resolveVariable(listVar, data);
+      if (!Array.isArray(list)) return '';
+
+      return list
+        .map((item, index) => {
+          const itemScope = {
+            ...data,
+            [itemVar]: item,
+            $index: index,
+            $first: index === 0,
+            $last: index === list.length - 1,
+          };
+          return this.compile(innerContent, itemScope);
+        })
+        .join('');
+    });
+
+    // 4. Conditionals: @if(condition) ... @else ... @endif
+    const ifRegex = /@if\s*\((.+?)\)([\s\S]*?)(?:@else([\s\S]*?))?@endif/g;
+    output = output.replace(ifRegex, (_, condition, trueContent, falseContent) => {
+      const isTrue = this.evaluateCondition(condition, data);
+      return isTrue ? this.compile(trueContent, data) : falseContent ? this.compile(falseContent, data) : '';
+    });
+
+    // 5. Unescaped HTML: {!! var !!} or {!! slot !!}
+    output = output.replace(/\{!!\s*([a-zA-Z0-9_$.]+)\s*!!\}/g, (_, varName) => {
+      const cleanVar = varName.replace(/^\$/, '');
+      const val = this.resolveVariable(cleanVar, data);
+      return val !== undefined && val !== null ? String(val) : '';
+    });
+
+    // 6. Escaped variables: {{ var }} or {{ $slot }}
+    output = output.replace(/\{\{\s*([a-zA-Z0-9_$.]+)\s*\}\}/g, (_, varName) => {
+      const cleanVar = varName.replace(/^\$/, '');
+      const val = this.resolveVariable(cleanVar, data);
+      return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
+    });
+
+    return output;
+  }
+
+  /**
+   * Compiles modern Blade components: <x-layouts.app title="hi">Content <x-slot:after>...</x-slot:after></x-layouts.app>
+   */
+  private compileComponents(template: string, scope: Record<string, any>): string {
+    let result = template;
+
+    // Match <x-component.name attrs...>content</x-component.name>
+    const componentRegex = /<x-([a-zA-Z0-9_.-]+)([^>]*)>([\s\S]*?)<\/x-\1>/g;
+    // Also support self-closing <x-component.name attrs... />
+    const selfClosingRegex = /<x-([a-zA-Z0-9_.-]+)([^>]*)\/>/g;
+
+    // First handle non-self-closing components
+    while (componentRegex.test(result)) {
+      componentRegex.lastIndex = 0;
+      result = result.replace(componentRegex, (_, componentName, rawAttrs, innerContent) => {
+        const props = this.parseAttributes(rawAttrs, scope);
+        const slots = this.extractSlots(innerContent, scope);
+
+        // Merge component scope: global scope + passed props + default & named slots
+        const componentScope = {
+          ...scope,
+          ...props,
+          slot: slots.defaultSlot,
+          $slot: slots.defaultSlot,
+          ...slots.namedSlots,
+        };
+
+        const componentTemplate = this.loadTemplate(componentName);
+        return this.compile(componentTemplate, componentScope);
+      });
+    }
+
+    // Handle self-closing components
+    result = result.replace(selfClosingRegex, (_, componentName, rawAttrs) => {
+      const props = this.parseAttributes(rawAttrs, scope);
+      const componentScope = {
+        ...scope,
+        ...props,
+        slot: '',
+        $slot: '',
+      };
+      const componentTemplate = this.loadTemplate(componentName);
+      return this.compile(componentTemplate, componentScope);
+    });
+
+    return result;
+  }
+
+  /**
+   * Extracts <x-slot name="..."> / <x-slot:...> and default slot content
+   */
+  private extractSlots(innerContent: string, scope: Record<string, any>): { defaultSlot: string; namedSlots: Record<string, string> } {
+    const namedSlots: Record<string, string> = {};
+    let remainingContent = innerContent;
+
+    // Match <x-slot name="header">...</x-slot> or <slot name="header">...</slot>
+    const nameAttrSlotRegex = /<(?:x-slot|slot)\s+name=["']([a-zA-Z0-9_]+)["']>([\s\S]*?)<\/(?:x-slot|slot)>/g;
+    remainingContent = remainingContent.replace(nameAttrSlotRegex, (_, slotName, slotContent) => {
+      namedSlots[slotName] = this.compile(slotContent.trim(), scope);
+      return '';
+    });
+
+    // Match <x-slot:header>...</x-slot:header>
+    const colonSlotRegex = /<x-slot:([a-zA-Z0-9_]+)>([\s\S]*?)<\/x-slot:\1>/g;
+    remainingContent = remainingContent.replace(colonSlotRegex, (_, slotName, slotContent) => {
+      namedSlots[slotName] = this.compile(slotContent.trim(), scope);
+      return '';
+    });
+
+    const defaultSlot = this.compile(remainingContent.trim(), scope);
+    return { defaultSlot, namedSlots };
+  }
+
+  /**
+   * Parses component attributes like title="Hello" or :count="42"
+   */
+  private parseAttributes(rawAttrs: string, scope: Record<string, any>): Record<string, any> {
+    const props: Record<string, any> = {};
+    const attrRegex = /([:a-zA-Z0-9_.-]+)(?:=(?:["']([^"']*)["']|([^\s>]+)))?/g;
+    let match;
+
+    while ((match = attrRegex.exec(rawAttrs)) !== null) {
+      const key = match[1];
+      if (!key) continue;
+
+      const val = match[2] !== undefined ? match[2] : match[3] !== undefined ? match[3] : true;
+
+      // Handle dynamic bound prop :prop="expr"
+      if (key.startsWith(':')) {
+        const propName = key.substring(1);
+        try {
+          const fn = new Function(...Object.keys(scope), `return (${val});`);
+          props[propName] = fn(...Object.values(scope));
+        } catch {
+          props[propName] = this.resolveVariable(String(val), scope);
+        }
+      } else {
+        props[key] = val;
+      }
+    }
+
+    return props;
+  }
+
+  /**
+   * Legacy @extends / @section / @yield support
+   */
+  private compileLegacyLayouts(template: string, data: Record<string, any>): string {
+    let output = template;
+    const extendsMatch = output.match(/@extends\(['"](.+?)['"]\)/);
+    let layoutName: string | null = null;
+    if (extendsMatch) {
+      layoutName = extendsMatch[1]!;
+      output = output.replace(extendsMatch[0], '');
+    }
+
+    const sections: Record<string, string> = {};
+    const sectionRegex = /@section\(['"](.+?)['"]\)([\s\S]*?)@endsection/g;
+    output = output.replace(sectionRegex, (_, name, content) => {
+      sections[name] = content.trim();
+      return '';
+    });
+
+    if (layoutName) {
+      const layoutRaw = this.loadTemplate(layoutName);
+      output = layoutRaw.replace(/@yield\(['"](.+?)['"]\)/g, (_, name) => {
+        return sections[name] || '';
+      });
+    }
+
+    return output;
+  }
+
+  private resolveVariable(path: string, scope: Record<string, any>): any {
+    const parts = path.trim().split('.');
+    let current: any = scope;
+    for (const part of parts) {
+      if (current === undefined || current === null) return undefined;
+      current = current[part];
+    }
+    return current;
+  }
+
+  private evaluateCondition(condition: string, scope: Record<string, any>): boolean {
+    const trimmed = condition.trim();
+    if (/^[a-zA-Z0-9_.]+$/.test(trimmed)) {
+      return Boolean(this.resolveVariable(trimmed, scope));
+    }
+
+    try {
+      const keys = Object.keys(scope);
+      const values = Object.values(scope);
+      const fn = new Function(...keys, `return Boolean(${trimmed});`);
+      return Boolean(fn(...values));
+    } catch {
+      return false;
+    }
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+}
+
+export const defaultViewEngine = new ViewEngine();

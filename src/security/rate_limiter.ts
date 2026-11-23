@@ -1,0 +1,75 @@
+import type { Middleware } from '../router/middleware.js';
+import type { Context } from '../http/context.js';
+
+export interface RateLimitOptions {
+  max?: number; // Max requests
+  windowMs?: number; // Time window in milliseconds (default 60s)
+  message?: string;
+}
+
+interface ClientRecord {
+  count: number;
+  resetAt: number;
+}
+
+export class RateLimiter {
+  private records = new Map<string, ClientRecord>();
+
+  public check(key: string, max: number = 60, windowMs: number = 60000): { allowed: boolean; remaining: number; resetInSec: number } {
+    const now = Date.now();
+    const record = this.records.get(key);
+
+    if (!record || now > record.resetAt) {
+      this.records.set(key, { count: 1, resetAt: now + windowMs });
+      return {
+        allowed: true,
+        remaining: max - 1,
+        resetInSec: Math.ceil(windowMs / 1000),
+      };
+    }
+
+    record.count++;
+    const remaining = Math.max(0, max - record.count);
+    const resetInSec = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+
+    return {
+      allowed: record.count <= max,
+      remaining,
+      resetInSec,
+    };
+  }
+
+  public reset(key: string): void {
+    this.records.delete(key);
+  }
+
+  public clear(): void {
+    this.records.clear();
+  }
+}
+
+export const rateLimiter = new RateLimiter();
+
+export function rateLimit(options: RateLimitOptions = {}): Middleware {
+  const max = options.max || 60;
+  const windowMs = options.windowMs || 60000;
+  const message = options.message || 'Too Many Requests';
+
+  return async (ctx: Context, next) => {
+    // Client identifier: IP or forwarded header
+    const ip = (ctx.headers['x-forwarded-for'] as string) || ctx.req.socket.remoteAddress || '127.0.0.1';
+    const key = `${ip}:${ctx.path}`;
+
+    const { allowed, remaining, resetInSec } = rateLimiter.check(key, max, windowMs);
+
+    ctx.header('X-RateLimit-Limit', String(max));
+    ctx.header('X-RateLimit-Remaining', String(remaining));
+
+    if (!allowed) {
+      ctx.header('Retry-After', String(resetInSec));
+      return ctx.json({ error: message, retryAfter: resetInSec }, 429);
+    }
+
+    await next();
+  };
+}
