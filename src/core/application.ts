@@ -98,6 +98,28 @@ export class Application {
     return this;
   }
 
+  public async handle(ctx: Context): Promise<void> {
+    let index = -1;
+    const middlewares = this.globalMiddlewares;
+
+    const dispatch = async (i: number): Promise<void> => {
+      if (i <= index) throw new Error('next() called multiple times');
+      index = i;
+
+      const fn = middlewares[i];
+      if (fn) {
+        await fn(ctx, () => dispatch(i + 1));
+      } else {
+        const handled = await this.router.dispatch(ctx);
+        if (!handled && !ctx.res.writableEnded) {
+          ctx.json({ error: 'Not Found', path: ctx.path, method: ctx.method }, 404);
+        }
+      }
+    };
+
+    await dispatch(0);
+  }
+
   public port: number = 3000;
 
   public listen(port: number = 3000, host: string = '0.0.0.0', callback?: (port: number) => void): Server {
@@ -107,10 +129,7 @@ export class Application {
       const ctx = new Context(req, res);
 
       try {
-        const handled = await this.router.dispatch(ctx, this.globalMiddlewares);
-        if (!handled && !res.writableEnded) {
-          ctx.json({ error: 'Not Found', path: ctx.path, method: ctx.method }, 404);
-        }
+        await this.handle(ctx);
       } catch (err: any) {
         if (!res.writableEnded) {
           if (err.name === 'ValidationError') {

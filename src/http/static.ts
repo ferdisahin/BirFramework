@@ -59,9 +59,13 @@ export function serveStatic(options: StaticOptions = {}): Middleware {
       }
 
       ctx.status(200);
-      const stream = createReadStream(fullPath);
-      stream.pipe(ctx.res);
-      return;
+      return new Promise<void>((resStream, rejStream) => {
+        const stream = createReadStream(fullPath);
+        stream.pipe(ctx.res);
+        stream.on('finish', () => resStream());
+        stream.on('close', () => resStream());
+        stream.on('error', (err) => rejStream(err));
+      });
     }
 
     await next();

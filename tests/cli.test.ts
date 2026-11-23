@@ -24,10 +24,19 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.strictEqual(existsSync(resolve(testTailwindApp, 'tsconfig.json')), true);
     assert.strictEqual(existsSync(resolve(testTailwindApp, 'app.ts')), true);
     assert.strictEqual(existsSync(resolve(testTailwindApp, 'routes/web.ts')), true);
+    assert.strictEqual(existsSync(resolve(testTailwindApp, 'resources/css/app.css')), true);
     assert.strictEqual(existsSync(resolve(testTailwindApp, 'public/css/app.css')), true);
 
+    const pkg = JSON.parse(readFileSync(resolve(testTailwindApp, 'package.json'), 'utf-8'));
+    assert.ok(pkg.devDependencies['@tailwindcss/cli']);
+    assert.ok(pkg.devDependencies['tailwindcss']);
+    assert.ok(pkg.devDependencies['concurrently']);
+    assert.ok(pkg.scripts['build:css']);
+    assert.ok(pkg.scripts['watch:css']);
+
     const layoutHtml = readFileSync(resolve(testTailwindApp, 'views/layouts/app.html'), 'utf-8');
-    assert.match(layoutHtml, /cdn\.tailwindcss\.com/);
+    assert.doesNotMatch(layoutHtml, /cdn\.tailwindcss\.com/);
+    assert.match(layoutHtml, /href="\/css\/app\.css"/);
     assert.match(layoutHtml, /bir_scripts/);
 
     const welcomeHtml = readFileSync(resolve(testTailwindApp, 'views/welcome.html'), 'utf-8');

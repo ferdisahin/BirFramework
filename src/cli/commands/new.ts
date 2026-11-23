@@ -82,26 +82,47 @@ export async function createNewProject(
   mkdirSync(join(projectDir, 'routes'), { recursive: true });
   mkdirSync(join(projectDir, 'views/layouts'), { recursive: true });
   mkdirSync(join(projectDir, 'public/css'), { recursive: true });
+  if (isTailwind) {
+    mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
+  }
 
   // 1. package.json
+  const devScripts: Record<string, string> = {
+    start: isTS ? 'npx tsx app.ts' : 'node app.js',
+  };
+
+  if (isTailwind) {
+    devScripts['build:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify';
+    devScripts['watch:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch';
+    devScripts['dev'] = isTS
+      ? 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "npx tsx watch app.ts"'
+      : 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "node --watch app.js"';
+    devScripts['build'] = 'npm run build:css';
+  } else {
+    devScripts['dev'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+  }
+
+  const devDependencies: Record<string, string> = {};
+  if (isTS) {
+    devDependencies['typescript'] = '^5.7.0';
+    devDependencies['@types/node'] = '^22.0.0';
+    devDependencies['tsx'] = '^4.19.0';
+  }
+  if (isTailwind) {
+    devDependencies['@tailwindcss/cli'] = '^4.0.0';
+    devDependencies['tailwindcss'] = '^4.0.0';
+    devDependencies['concurrently'] = '^9.1.0';
+  }
+
   const pkg = {
     name,
     version: '1.0.0',
     type: 'module',
-    scripts: {
-      dev: isTS ? 'npx tsx watch app.ts' : 'node --watch app.js',
-      start: isTS ? 'npx tsx app.ts' : 'node app.js',
-    },
+    scripts: devScripts,
     dependencies: {
       birframework: `^${VERSION}`,
     },
-    devDependencies: isTS
-      ? {
-          typescript: '^5.7.0',
-          '@types/node': '^22.0.0',
-          tsx: '^4.19.0',
-        }
-      : {},
+    devDependencies,
   };
   writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2), 'utf-8');
 
@@ -176,9 +197,14 @@ export class HomeController {
 `;
   writeFileSync(join(projectDir, `app/controllers/HomeController.${ext}`), controllerContent, 'utf-8');
 
-  // 5. public/css/app.css
+  // 5. resources/css/app.css (Tailwind source) & public/css/app.css
+  if (isTailwind) {
+    writeFileSync(join(projectDir, 'resources/css/app.css'), '@import "tailwindcss";\n', 'utf-8');
+  }
+
   const cssFileContent = isTailwind
-    ? `/* Custom styles */
+    ? `/* Built with Tailwind CSS v4 */
+@import "tailwindcss";
 `
     : `* {
   box-sizing: border-box;
@@ -316,25 +342,8 @@ footer {
 `;
   writeFileSync(join(projectDir, 'public/css/app.css'), cssFileContent, 'utf-8');
 
-  // 6. views/layouts/app.html (Tailwind or Pure CSS)
-  const layoutContent = isTailwind
-    ? `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white">
-  {!! slot !!}
-  {!! after !!}
-
-  {!! bir_scripts() !!}
-</body>
-</html>
-`
-    : `<!DOCTYPE html>
+  // 6. views/layouts/app.html
+  const layoutContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -342,7 +351,7 @@ footer {
   <title>{{ title }}</title>
   <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
+<body class="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
   {!! slot !!}
   {!! after !!}
 

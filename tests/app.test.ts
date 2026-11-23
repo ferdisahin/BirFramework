@@ -72,6 +72,25 @@ describe('BirFramework HTTP & Router Tests', () => {
     const res = await fetch(`${baseUrl}/undefined-route`);
     assert.strictEqual(res.status, 404);
   });
+
+  test('GET /test-asset.css -> should serve static file from public folder with correct MIME', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const publicDir = path.resolve(process.cwd(), 'public');
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+    const filePath = path.join(publicDir, 'test-asset.css');
+    fs.writeFileSync(filePath, 'body { background: #000; }', 'utf-8');
+
+    try {
+      const res = await fetch(`${baseUrl}/test-asset.css`);
+      assert.strictEqual(res.status, 200);
+      assert.ok(res.headers.get('content-type')?.includes('text/css'));
+      const text = await res.text();
+      assert.strictEqual(text, 'body { background: #000; }');
+    } finally {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+  });
 });
 
 describe('BirFramework Modern Blade Component & Slot Tests', () => {
