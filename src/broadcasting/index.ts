@@ -7,11 +7,18 @@ export interface BroadcastChannel {
   subscribers: Set<WebSocketClient>;
 }
 
+export type ChannelAuthorizer = (
+  client: WebSocketClient,
+  params?: Record<string, string>,
+  authData?: any
+) => boolean | Promise<boolean>;
+
 export class WebSocketClient {
   public id: string;
   public socket: Duplex;
   public channels: Set<string> = new Set();
   public data: Record<string, any> = {};
+  public user?: any;
 
   constructor(socket: Duplex) {
     this.id = crypto.randomUUID();
@@ -36,6 +43,7 @@ export class WebSocketClient {
 export class WebSocketServer {
   private clients: Map<string, WebSocketClient> = new Map();
   private channels: Map<string, Set<WebSocketClient>> = new Map();
+  private authorizers: Map<string | RegExp, ChannelAuthorizer> = new Map();
 
   public handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const key = req.headers['sec-websocket-key'];
@@ -79,6 +87,49 @@ export class WebSocketServer {
     client.send({ type: 'connection_established', socket_id: client.id });
   }
 
+  public channel(channelPattern: string, authorizer: ChannelAuthorizer): void {
+    if (channelPattern.includes('*') || channelPattern.includes('{')) {
+      const regexStr = '^' + channelPattern
+        .replace(/\./g, '\\.')
+        .replace(/\{(\w+)\}/g, '(?<$1>[^.]+)')
+        .replace(/\*/g, '.*') + '$';
+      this.authorizers.set(new RegExp(regexStr), authorizer);
+    } else {
+      this.authorizers.set(channelPattern, authorizer);
+    }
+  }
+
+  public async canSubscribe(client: WebSocketClient, channelName: string, authData?: any): Promise<boolean> {
+    const isPrivate = channelName.startsWith('private-') || channelName.startsWith('presence-');
+
+    for (const [pattern, authorizer] of this.authorizers.entries()) {
+      if (typeof pattern === 'string' && pattern === channelName) {
+        try {
+          return await authorizer(client, {}, authData);
+        } catch {
+          return false;
+        }
+      } else if (pattern instanceof RegExp) {
+        const match = pattern.exec(channelName);
+        if (match) {
+          try {
+            return await authorizer(client, match.groups || {}, authData);
+          } catch {
+            return false;
+          }
+        }
+      }
+    }
+
+    // If private or presence channel has no authorizer, deny access by default
+    if (isPrivate) {
+      return false;
+    }
+
+    // Public channels without private-/presence- prefix are open
+    return true;
+  }
+
   private handleFrame(client: WebSocketClient, buffer: Buffer): void {
     if (buffer.length < 2) return;
 
@@ -109,7 +160,6 @@ export class WebSocketServer {
         payloadLength = buffer.readUInt16BE(offset);
         offset += 2;
       } else if (payloadLength === 127) {
-        // 64-bit length (safe integer part)
         payloadLength = Number(buffer.readBigUInt64BE(offset));
         offset += 8;
       }
@@ -138,8 +188,17 @@ export class WebSocketServer {
     }
   }
 
-  private handleMessage(client: WebSocketClient, msg: any): void {
+  private async handleMessage(client: WebSocketClient, msg: any): Promise<void> {
     if (msg.event === 'subscribe' && msg.channel) {
+      const allowed = await this.canSubscribe(client, msg.channel, msg.auth);
+      if (!allowed) {
+        client.send({
+          event: 'subscription_error',
+          channel: msg.channel,
+          error: 'Unauthorized channel subscription',
+        });
+        return;
+      }
       this.join(client, msg.channel);
       client.send({ event: 'subscribed', channel: msg.channel });
     } else if (msg.event === 'unsubscribe' && msg.channel) {
@@ -238,8 +297,16 @@ export class BroadcastManager {
     };
   }
 
-  public channel(name: string) {
-    return this.to(name);
+  /**
+   * Register a channel authorization callback or get a channel emitter
+   * Broadcast.channel('private-orders.{id}', (client, params) => client.user?.id === params?.id)
+   */
+  public channel(pattern: string, authorizer?: ChannelAuthorizer) {
+    if (authorizer) {
+      this.wsServer.channel(pattern, authorizer);
+      return;
+    }
+    return this.to(pattern);
   }
 }
 

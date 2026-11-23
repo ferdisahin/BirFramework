@@ -5,6 +5,7 @@ export interface RateLimitOptions {
   max?: number; // Max requests
   windowMs?: number; // Time window in milliseconds (default 60s)
   message?: string;
+  trustProxy?: boolean; // Only trust X-Forwarded-For when explicitly enabled
 }
 
 interface ClientRecord {
@@ -54,10 +55,21 @@ export function rateLimit(options: RateLimitOptions = {}): Middleware {
   const max = options.max || 60;
   const windowMs = options.windowMs || 60000;
   const message = options.message || 'Too Many Requests';
+  const trustProxy = options.trustProxy ?? (process.env.TRUST_PROXY === 'true');
 
   return async (ctx: Context, next) => {
-    // Client identifier: IP or forwarded header
-    const ip = (ctx.headers['x-forwarded-for'] as string) || ctx.req.socket.remoteAddress || '127.0.0.1';
+    let ip = ctx.req.socket.remoteAddress || '127.0.0.1';
+
+    if (trustProxy) {
+      const forwarded = ctx.headers['x-forwarded-for'];
+      if (typeof forwarded === 'string' && forwarded.length > 0) {
+        const firstIp = forwarded.split(',')[0]?.trim();
+        if (firstIp) {
+          ip = firstIp;
+        }
+      }
+    }
+
     const key = `${ip}:${ctx.path}`;
 
     const { allowed, remaining, resetInSec } = rateLimiter.check(key, max, windowMs);

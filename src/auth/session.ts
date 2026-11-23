@@ -6,18 +6,42 @@ export interface SessionOptions {
   secret?: string;
   cookieName?: string;
   maxAge?: number; // seconds
+  secure?: boolean;
 }
 
 export class Session {
   public id: string;
   private data: Record<string, any> = {};
   private flashData: Record<string, any> = {};
-  private isNew: boolean = false;
+  public isNew: boolean = false;
+  public createdAt: number;
+  public lastActivity: number;
 
   constructor(id?: string, initialData: Record<string, any> = {}) {
     this.id = id || randomBytes(16).toString('hex');
     this.data = { ...initialData };
     this.isNew = !id;
+    this.createdAt = Date.now();
+    this.lastActivity = Date.now();
+  }
+
+  public touch(): void {
+    this.lastActivity = Date.now();
+  }
+
+  public isExpired(maxAgeSeconds: number): boolean {
+    return Date.now() - this.lastActivity > maxAgeSeconds * 1000;
+  }
+
+  public regenerate(): string {
+    const oldId = this.id;
+    const newId = randomBytes(16).toString('hex');
+    this.id = newId;
+    this.touch();
+
+    sessionStore.delete(oldId);
+    sessionStore.set(newId, this);
+    return newId;
   }
 
   public get<T = any>(key: string, defaultValue?: T): T {
@@ -31,11 +55,13 @@ export class Session {
 
   public set(key: string, value: any): this {
     this.data[key] = value;
+    this.touch();
     return this;
   }
 
   public flash(key: string, value: any): this {
     this.flashData[key] = value;
+    this.touch();
     return this;
   }
 
@@ -50,11 +76,13 @@ export class Session {
   public remove(key: string): void {
     delete this.data[key];
     delete this.flashData[key];
+    this.touch();
   }
 
   public clear(): void {
     this.data = {};
     this.flashData = {};
+    this.touch();
   }
 
   public toJSON(): Record<string, any> {
@@ -65,11 +93,32 @@ export class Session {
 // In-memory session store (can be extended to Redis/SQLite)
 export const sessionStore = new Map<string, Session>();
 
+export function sweepExpiredSessions(maxAgeSeconds: number): number {
+  let count = 0;
+  for (const [id, session] of sessionStore.entries()) {
+    if (session.isExpired(maxAgeSeconds)) {
+      sessionStore.delete(id);
+      count++;
+    }
+  }
+  return count;
+}
+
 export class CookieManager {
   private secret: string;
 
-  constructor(secret: string = process.env.APP_KEY || 'bir-framework-secret-key-32-chars-min') {
-    this.secret = secret;
+  constructor(secret?: string) {
+    const candidate = secret || process.env.APP_KEY;
+    if (!candidate) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          '[BirSecurity] Production environment requires APP_KEY environment variable or SessionOptions.secret to be configured.'
+        );
+      }
+      this.secret = 'bir-framework-dev-fallback-key-32-chars-min';
+    } else {
+      this.secret = candidate;
+    }
   }
 
   public parse(header: string = ''): Record<string, string> {
@@ -126,26 +175,43 @@ export class CookieManager {
 
 export const cookieManager = new CookieManager();
 
+let lastSweepTime = Date.now();
+
 /**
  * Session Middleware: attaches `ctx.session` to every request and sets signed session cookie.
  */
 export function sessionMiddleware(options: SessionOptions = {}): Middleware {
   const cookieName = options.cookieName || 'bir_session';
   const maxAge = options.maxAge || 86400 * 7; // 7 days
+  const manager = options.secret ? new CookieManager(options.secret) : cookieManager;
 
   return async (ctx: Context, next) => {
+    // Periodically sweep expired sessions from memory (every 10 minutes)
+    if (Date.now() - lastSweepTime > 600000) {
+      lastSweepTime = Date.now();
+      sweepExpiredSessions(maxAge);
+    }
+
     const rawCookieHeader = ctx.req.headers.cookie || '';
-    const cookies = cookieManager.parse(rawCookieHeader);
+    const cookies = manager.parse(rawCookieHeader);
     const signedSessionId = cookies[cookieName];
 
     let sessionId: string | null = null;
     if (signedSessionId) {
-      sessionId = cookieManager.unsign(signedSessionId);
+      sessionId = manager.unsign(signedSessionId);
     }
 
     let session: Session;
     if (sessionId && sessionStore.has(sessionId)) {
       session = sessionStore.get(sessionId)!;
+      // Server-side expiration check
+      if (session.isExpired(maxAge)) {
+        sessionStore.delete(sessionId);
+        session = new Session();
+        sessionStore.set(session.id, session);
+      } else {
+        session.touch();
+      }
     } else {
       session = new Session();
       sessionStore.set(session.id, session);
@@ -154,12 +220,20 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
     // Attach to context
     (ctx as any).session = session;
 
+    // Secure flag: true in production, or when requested over HTTPS, or explicitly enabled in options
+    const isHttps =
+      ctx.req.headers['x-forwarded-proto'] === 'https' ||
+      (ctx.req.socket as any)?.encrypted === true;
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secure = options.secure !== undefined ? options.secure : (isProduction || isHttps);
+
     // Set signed cookie on response
-    const signedVal = cookieManager.sign(session.id);
-    const cookieHeader = cookieManager.serialize(cookieName, signedVal, {
+    const signedVal = manager.sign(session.id);
+    const cookieHeader = manager.serialize(cookieName, signedVal, {
       maxAge,
       httpOnly: true,
       sameSite: 'Lax',
+      secure,
     });
     ctx.header('Set-Cookie', cookieHeader);
 

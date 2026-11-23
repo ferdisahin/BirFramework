@@ -25,9 +25,30 @@ export function csrf(): Middleware {
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
 
   return async (ctx: Context, next) => {
+    // If session middleware is missing or not yet executed
     if (!ctx.session) {
-      await next();
-      return;
+      if (safeMethods.includes(ctx.method)) {
+        await next();
+        return;
+      }
+
+      // On state-changing requests (POST, PUT, DELETE, PATCH), refuse to silently bypass CSRF protection
+      if (ctx.headers['accept']?.includes('application/json') || ctx.path.startsWith('/api/')) {
+        return ctx.json(
+          {
+            error: 'Forbidden',
+            message: '[BirSecurity] CSRF protection is active but no active session was found. Ensure sessionMiddleware is registered before csrf().',
+          },
+          403
+        );
+      }
+
+      return ctx.status(403).html(`
+        <div style="font-family:system-ui;text-align:center;padding:3rem;">
+          <h1 style="color:#ef4444;">403 | Forbidden</h1>
+          <p>CSRF protection is active on this route, but no session is available. Please ensure cookies are enabled.</p>
+        </div>
+      `);
     }
 
     // Ensure token is generated

@@ -16,6 +16,9 @@ export class Auth {
     if (!ctx.session) {
       throw new Error('[BirAuth] Session middleware is required to use Auth.login().');
     }
+    // Prevent session fixation by rotating session ID upon authentication
+    ctx.session.regenerate();
+
     const id = user.id || (user.attributes && user.attributes.id);
     ctx.session.set(this.sessionKey, id);
   }

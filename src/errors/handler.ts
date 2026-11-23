@@ -89,6 +89,22 @@ export class ErrorHandler {
       return;
     }
 
+    // 2.5 Payload Too Large (413)
+    if (err?.name === 'PayloadTooLargeError' || err?.statusCode === 413) {
+      if (wantsHtml) {
+        ctx.html(
+          `<div style="font-family:system-ui;text-align:center;padding:3rem;">
+            <h1 style="color:#ef4444;">413 | Payload Too Large</h1>
+            <p>${err.message || 'Request entity exceeds maximum allowed size'}</p>
+          </div>`,
+          413
+        );
+        return;
+      }
+      ctx.json({ error: 'Payload Too Large', message: err.message || 'Payload Too Large' }, 413);
+      return;
+    }
+
     // 3. 500 Internal Server Errors
     console.error(`\x1b[31m[BirFramework Error]\x1b[0m`, err);
 

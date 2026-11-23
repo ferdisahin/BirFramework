@@ -15,6 +15,18 @@ export interface CookieOptions {
   domain?: string;
 }
 
+export class PayloadTooLargeError extends Error {
+  public readonly status = 413;
+  public readonly statusCode = 413;
+
+  constructor(message = 'Payload Too Large: Request body exceeds size limit') {
+    super(message);
+    this.name = 'PayloadTooLargeError';
+  }
+}
+
+const DEFAULT_MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || '', 10) || 10 * 1024 * 1024; // 10 MB default
+
 export class Context {
   public params: Record<string, string> = {};
   public query: Record<string, string | string[]> = {};
@@ -241,21 +253,53 @@ export class Context {
     }
   }
 
-  private readRawBodyBuffer(): Promise<Buffer> {
+  private readRawBodyBuffer(maxSize: number = DEFAULT_MAX_BODY_SIZE): Promise<Buffer> {
     if (this._rawBodyBuffer) {
       return Promise.resolve(this._rawBodyBuffer);
     }
 
     return new Promise((resolve, reject) => {
+      const contentLengthHeader = this.req.headers['content-length'];
+      if (contentLengthHeader) {
+        const contentLength = parseInt(contentLengthHeader, 10);
+        if (!isNaN(contentLength) && contentLength > maxSize) {
+          this.res.statusCode = 413;
+          return reject(
+            new PayloadTooLargeError(`Payload Too Large: Content-Length ${contentLength} exceeds limit of ${maxSize} bytes`)
+          );
+        }
+      }
+
+      let totalBytes = 0;
       const chunks: Buffer[] = [];
-      this.req.on('data', (chunk) => {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      });
-      this.req.on('end', () => {
+
+      const onData = (chunk: any) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalBytes += buf.length;
+        if (totalBytes > maxSize) {
+          this.req.removeListener('data', onData);
+          this.req.removeListener('end', onEnd);
+          this.req.removeListener('error', onError);
+          this.res.statusCode = 413;
+          this.req.destroy();
+          reject(
+            new PayloadTooLargeError(`Payload Too Large: Request body exceeded limit of ${maxSize} bytes`)
+          );
+        } else {
+          chunks.push(buf);
+        }
+      };
+
+      const onEnd = () => {
         this._rawBodyBuffer = Buffer.concat(chunks);
         resolve(this._rawBodyBuffer);
-      });
-      this.req.on('error', (err) => reject(err));
+      };
+
+      const onError = (err: any) => reject(err);
+
+      this.req.on('data', onData);
+      this.req.on('end', onEnd);
+      this.req.on('error', onError);
     });
   }
 }
