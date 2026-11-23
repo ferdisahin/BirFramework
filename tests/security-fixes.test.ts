@@ -920,4 +920,85 @@ describe('BirFramework Security Fixes Verification Tests', () => {
 
     assert.strictEqual(assertValidName('Admin/UserController'), 'Admin/UserController');
   });
+
+  // 28. UploadedFile Path Traversal Prevention
+  test('UploadedFile store and storeAs prevent directory traversal attempts', async () => {
+    const { UploadedFile } = await import('../src/http/uploaded-file.js');
+    const file = new UploadedFile({
+      name: 'avatar.png',
+      size: 100,
+      type: 'image/png',
+      buffer: Buffer.from('fake image content'),
+    });
+
+    await assert.rejects(async () => {
+      await file.store('../../etc');
+    }, /Invalid folder path \(path traversal prevented\)/);
+
+    await assert.rejects(async () => {
+      await file.storeAs('../../etc', 'passwd');
+    }, /Path traversal detected in upload destination/);
+
+    await assert.rejects(async () => {
+      await file.storeAs('avatars', '../../etc/passwd');
+    }, /Path traversal detected in upload destination/);
+  });
+
+  // 29. S3 Disk Path Traversal Prevention
+  test('S3Disk path and url prevent path traversal sequences', async () => {
+    const { S3Disk } = await import('../src/storage/drivers/s3.js');
+    const disk = new S3Disk({
+      bucket: 'my-bucket',
+      region: 'us-east-1',
+    });
+
+    assert.throws(() => {
+      disk.path('../secret.env');
+    }, /Path traversal detected in S3 path/);
+
+    assert.throws(() => {
+      disk.url('../../config/database.json');
+    }, /Path traversal detected in S3 path/);
+
+    assert.strictEqual(disk.path('uploads/photo.jpg'), 's3://my-bucket/uploads/photo.jpg');
+    assert.strictEqual(disk.url('uploads/photo.jpg'), 'https://my-bucket.s3.us-east-1.amazonaws.com/uploads/photo.jpg');
+  });
+
+  // 30. Queue Worker Prototype Pollution Prevention
+  test('QueueWorker deserialization ignores prototype pollution keys', async () => {
+    const { QueueWorker } = await import('../src/queue/worker.js');
+    const { Queue } = await import('../src/queue/queue.js');
+    const { dbConnection } = await import('../src/database/connection.js');
+
+    dbConnection.connect();
+    await Queue.ensureQueueTable();
+
+    const worker = new QueueWorker();
+
+    const maliciousPayload = JSON.stringify({
+      data: {
+        normalKey: 'safe-value',
+        __proto__: { polluted: true },
+        constructor: { polluted: true },
+        prototype: { polluted: true },
+      },
+    });
+
+    // Insert malicious job directly into SQLite queue
+    await dbConnection.execute(
+      `INSERT INTO _jobs (queue, name, payload, attempts, available_at, created_at) VALUES (?, ?, ?, ?, ?, ?);`,
+      ['security-test-queue', 'SecurityMaliciousJob', maliciousPayload, 0, Math.floor(Date.now() / 1000) - 10, Math.floor(Date.now() / 1000)]
+    );
+
+    // Before worker processes, clean Object
+    assert.strictEqual(({} as any).polluted, undefined);
+
+    // Process job from our test queue
+    const processed = await worker.processNext('security-test-queue');
+    assert.strictEqual(processed, true);
+
+    // Verify prototype was NOT polluted
+    assert.strictEqual(({} as any).polluted, undefined);
+    assert.strictEqual(Object.prototype.hasOwnProperty('polluted'), false);
+  });
 });

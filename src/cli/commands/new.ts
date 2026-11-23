@@ -42,6 +42,11 @@ export async function createNewProject(
     return;
   }
 
+  if (name.includes('..') || name.includes('\0') || !/^[a-zA-Z0-9_.-]+$/.test(name)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Invalid project name or path traversal attempt: "${name}"`);
+    return;
+  }
+
   const projectDir = resolve(process.cwd(), name);
 
   if (existsSync(projectDir)) {

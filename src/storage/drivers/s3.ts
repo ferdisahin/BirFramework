@@ -36,11 +36,17 @@ export class S3Disk implements StorageDisk {
   }
 
   public path(filePath: string): string {
+    if (typeof filePath !== 'string' || filePath.includes('..') || filePath.includes('\0')) {
+      throw new Error(`[BirStorage] Path traversal detected in S3 path: "${filePath}".`);
+    }
     const cleanPath = filePath.replace(/^\/+/, '');
     return `s3://${this.bucket}/${cleanPath}`;
   }
 
   public url(filePath: string): string {
+    if (typeof filePath !== 'string' || filePath.includes('..') || filePath.includes('\0')) {
+      throw new Error(`[BirStorage] Path traversal detected in S3 path: "${filePath}".`);
+    }
     const cleanPath = filePath.replace(/^\/+/, '');
     if (this.customUrl) {
       return `${this.customUrl}/${cleanPath}`;

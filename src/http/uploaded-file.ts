@@ -32,6 +32,9 @@ export class UploadedFile {
    * Returns the stored relative file path.
    */
   public async store(folder: string = 'uploads', diskName: string = 'local'): Promise<string> {
+    if (folder.includes('..') || folder.includes('\0')) {
+      throw new Error('[BirHttp] Invalid folder path (path traversal prevented).');
+    }
     const ext = this.extension();
     const uniqueName = `${randomBytes(16).toString('hex')}${ext ? '.' + ext : ''}`;
     const cleanFolder = folder.replace(/^\/+|\/+$/g, '');
@@ -45,8 +48,11 @@ export class UploadedFile {
    * Store the uploaded file with an explicit custom filename.
    */
   public async storeAs(folder: string, name: string, diskName: string = 'local'): Promise<string> {
+    if (folder.includes('..') || name.includes('..') || folder.includes('\0') || name.includes('\0')) {
+      throw new Error('[BirHttp] Path traversal detected in upload destination.');
+    }
     const cleanFolder = folder.replace(/^\/+|\/+$/g, '');
-    const cleanName = name.replace(/^\/+/, '');
+    const cleanName = name.replace(/^.*[/\\]/, '');
     const targetPath = cleanFolder ? `${cleanFolder}/${cleanName}` : cleanName;
 
     await Storage.disk(diskName).put(targetPath, this.buffer);

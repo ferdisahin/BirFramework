@@ -33,11 +33,25 @@ export class QueueWorker {
       const parsed = JSON.parse(jobRecord.payload);
       if (JobClass) {
         jobInstance = new JobClass();
-        Object.assign(jobInstance, parsed.data);
+        if (parsed?.data && typeof parsed.data === 'object') {
+          for (const [k, v] of Object.entries(parsed.data)) {
+            if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
+              (jobInstance as any)[k] = v;
+            }
+          }
+        }
       } else {
         // Fallback generic object with handle if class not pre-registered
+        const safeData: Record<string, any> = {};
+        if (parsed?.data && typeof parsed.data === 'object') {
+          for (const [k, v] of Object.entries(parsed.data)) {
+            if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
+              safeData[k] = v;
+            }
+          }
+        }
         jobInstance = {
-          ...parsed.data,
+          ...safeData,
           handle: () => {
             console.warn(`[BirQueue Worker] Handler class not registered for: ${jobRecord.name}`);
           },
