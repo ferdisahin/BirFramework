@@ -167,9 +167,25 @@ export class ViewEngine {
         return val !== undefined && val !== null ? String(val) : '';
       });
 
-      // 6. Escaped variables: {{ var }} or {{ $slot }}
-      output = output.replace(/\{\{\s*([a-zA-Z0-9_$.]+)\s*\}\}/g, (_, varName) => {
-        const cleanVar = varName.replace(/^\$/, '');
+      // 6. Escaped variables and ternary expressions: {{ var }} or {{ a == b ? 'yes' : 'no' }}
+      output = output.replace(/\{\{\s*([\s\S]+?)\s*\}\}/g, (_, expression) => {
+        const trimmed = expression.trim();
+        // Check for ternary expression: cond ? trueVal : falseVal
+        if (trimmed.includes('?') && trimmed.includes(':')) {
+          const qIdx = trimmed.indexOf('?');
+          const cIdx = trimmed.indexOf(':', qIdx);
+          if (qIdx !== -1 && cIdx !== -1) {
+            const cond = trimmed.slice(0, qIdx).trim();
+            const trueVal = trimmed.slice(qIdx + 1, cIdx).trim();
+            const falseVal = trimmed.slice(cIdx + 1).trim();
+            const isTrue = this.evaluateCondition(cond, data);
+            const rawVal = isTrue ? trueVal : falseVal;
+            // Strip quotes if literal string
+            const cleanVal = rawVal.replace(/^['"](.*)['"]$/, '$1');
+            return this.escapeHtml(cleanVal);
+          }
+        }
+        const cleanVar = trimmed.replace(/^\$/, '');
         const val = this.resolveVariable(cleanVar, data);
         return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
       });

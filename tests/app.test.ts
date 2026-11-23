@@ -165,6 +165,18 @@ describe('BirFramework View Engine & Directive Tests', () => {
     assert.ok(compiled.includes('<span>Banana</span>'));
   });
 
+  test('should support ternary expressions inside {{ condition ? trueVal : falseVal }}', () => {
+    const template = `<div class="{{ active ? 'is-active' : 'is-inactive' }}">Status: {{ role == 'admin' ? 'Superuser' : 'Member' }}</div>`;
+
+    const compiled = defaultViewEngine.compile(template, {
+      active: true,
+      role: 'admin',
+    });
+
+    assert.ok(compiled.includes('class="is-active"'));
+    assert.ok(compiled.includes('Status: Superuser'));
+  });
+
   test('should support HTML escaping and unescaped {!! !!} raw tags', () => {
     const template = `Safe: {{ safe }} | Raw: {!! raw !!}`;
     const compiled = defaultViewEngine.compile(template, {
