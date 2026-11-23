@@ -1,4 +1,6 @@
 import { createServer, type Server } from 'node:http';
+import { watch, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Context } from '../http/context.js';
 import { Router, defaultRouter } from '../router/router.js';
 import { Container, app as defaultContainer } from '../container/container.js';
@@ -16,6 +18,8 @@ export class Application {
   public readonly container: Container;
   private globalMiddlewares: Middleware[] = [];
   private server: Server | null = null;
+  private liveClients = new Set<(msg: string) => void>();
+  private fileWatcherInitialized: boolean = false;
 
   constructor(options: ApplicationOptions = {}) {
     this.router = options.router || defaultRouter;
@@ -26,6 +30,67 @@ export class Application {
 
     // Default static file serving for public directory
     this.use(serveStatic());
+
+    // Register live reload in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      this.setupLiveReload();
+    }
+  }
+
+  private setupLiveReload(): void {
+    this.router.get('/__bir_live_reload', (ctx) => {
+      ctx.header('Content-Type', 'text/event-stream');
+      ctx.header('Cache-Control', 'no-cache');
+      ctx.header('Connection', 'keep-alive');
+      ctx.res.flushHeaders?.();
+
+      const send = (msg: string) => {
+        try {
+          ctx.res.write(`data: ${msg}\n\n`);
+        } catch {
+          // client disconnected
+        }
+      };
+
+      this.liveClients.add(send);
+      send('connected');
+
+      ctx.req.on('close', () => {
+        this.liveClients.delete(send);
+      });
+
+      this.initFileWatcher();
+    });
+  }
+
+  private initFileWatcher(): void {
+    if (this.fileWatcherInitialized) return;
+    this.fileWatcherInitialized = true;
+
+    const dirsToWatch = ['views', 'public', 'routes', 'app'];
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    for (const dir of dirsToWatch) {
+      const fullPath = resolve(process.cwd(), dir);
+      if (existsSync(fullPath)) {
+        try {
+          watch(fullPath, { recursive: true }, (_, filename) => {
+            if (!filename) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(() => {
+              const isCss = filename.endsWith('.css');
+              const action = isCss ? 'css-reload' : 'reload';
+              for (const send of this.liveClients) {
+                send(action);
+              }
+            }, 60);
+          });
+        } catch {
+          // ignore unsupported recursive watch
+        }
+      }
+    }
   }
 
   public use(...middlewares: Middleware[]): this {

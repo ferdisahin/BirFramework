@@ -160,6 +160,37 @@ describe('BirFramework View Engine & Directive Tests', () => {
     assert.ok(compiled.includes('bir-turbo-script'));
     assert.ok(compiled.includes('shouldIntercept'));
   });
+
+  test('should compile Blade @markdown ... @endmarkdown blocks into HTML', () => {
+    const template = `
+      @markdown
+      # Installation Guide
+      This is **bold** text and a [link](https://birframework.dev).
+
+      \`\`\`ts
+      const app = new Application();
+      \`\`\`
+      @endmarkdown
+    `;
+    const compiled = defaultViewEngine.compile(template);
+
+    assert.ok(compiled.includes('<h1>Installation Guide</h1>'));
+    assert.ok(compiled.includes('<strong>bold</strong>'));
+    assert.ok(compiled.includes('<a href="https://birframework.dev">link</a>'));
+    assert.ok(compiled.includes('<pre><code class="language-ts">'));
+    assert.ok(compiled.includes('const app = new Application();'));
+  });
+
+  test('should compile @markdown(variable) expression into HTML', () => {
+    const template = `<div>@markdown(article.body)</div>`;
+    const compiled = defaultViewEngine.compile(template, {
+      article: { body: '## Subtitle\n- First item\n- Second item' }
+    });
+
+    assert.ok(compiled.includes('<h2>Subtitle</h2>'));
+    assert.ok(compiled.includes('<li>First item</li>'));
+    assert.ok(compiled.includes('<li>Second item</li>'));
+  });
 });
 
 describe('BirFramework Pagination Tests', () => {

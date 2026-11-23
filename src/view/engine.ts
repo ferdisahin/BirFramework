@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { birScripts } from './turbo.js';
+import { parseMarkdown } from './markdown.js';
+
+export type MarkdownParser = (markdown: string) => string;
 
 export interface ViewEngineOptions {
   viewsDir?: string;
@@ -10,9 +13,21 @@ export interface ViewEngineOptions {
 export class ViewEngine {
   private viewsDir: string;
   private templateCache = new Map<string, string>();
+  private static customMarkdownParser?: MarkdownParser;
 
   constructor(options: ViewEngineOptions = {}) {
     this.viewsDir = options.viewsDir || resolve(process.cwd(), 'views');
+  }
+
+  public static setMarkdownParser(parser: MarkdownParser) {
+    ViewEngine.customMarkdownParser = parser;
+  }
+
+  public parseMarkdown(content: string): string {
+    if (ViewEngine.customMarkdownParser) {
+      return ViewEngine.customMarkdownParser(content);
+    }
+    return parseMarkdown(content);
   }
 
   public render(templateName: string, data: Record<string, any> = {}): string {
@@ -50,6 +65,21 @@ export class ViewEngine {
     // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
     output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
     output = output.replace(/@birScripts/g, birScripts());
+
+    // 1.2 Markdown Block: @markdown ... @endmarkdown
+    output = output.replace(/@markdown([\s\S]*?)@endmarkdown/g, (_, md) => {
+      return this.parseMarkdown(md.trim());
+    });
+
+    // 1.3 Markdown Inline/Variable: @markdown(expr)
+    output = output.replace(/@markdown\s*\((.+?)\)/g, (_, expr) => {
+      const cleanVar = expr.trim().replace(/^\$/, '');
+      const val = this.resolveVariable(cleanVar, data);
+      if (typeof val === 'string') {
+        return this.parseMarkdown(val);
+      }
+      return '';
+    });
 
     // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
     output = this.compileLegacyLayouts(output, data);
