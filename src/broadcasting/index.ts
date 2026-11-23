@@ -19,6 +19,7 @@ export class WebSocketClient {
   public channels: Set<string> = new Set();
   public data: Record<string, any> = {};
   public user?: any;
+  public buffer: Buffer = Buffer.alloc(0);
 
   constructor(socket: Duplex) {
     this.id = crypto.randomUUID();
@@ -72,7 +73,12 @@ export class WebSocketServer {
     this.clients.set(client.id, client);
 
     socket.on('data', (chunk: Buffer) => {
-      this.handleFrame(client, chunk);
+      try {
+        client.buffer = Buffer.concat([client.buffer, chunk]);
+        this.processClientBuffer(client);
+      } catch {
+        client.close();
+      }
     });
 
     socket.on('close', () => {
@@ -130,68 +136,91 @@ export class WebSocketServer {
     return true;
   }
 
-  private handleFrame(client: WebSocketClient, buffer: Buffer): void {
-    if (buffer.length < 2) return;
+  public handleFrame(client: WebSocketClient, buffer: Buffer): void {
+    client.buffer = Buffer.concat([client.buffer, buffer]);
+    this.processClientBuffer(client);
+  }
 
-    const firstByte = buffer[0]!;
-    const secondByte = buffer[1]!;
-    const opcode = firstByte & 0x0f;
-
-    // Opcode 8 = Close frame
-    if (opcode === 0x08) {
-      client.close();
-      return;
-    }
-
-    // Opcode 9 = Ping frame -> respond Pong (10)
-    if (opcode === 0x09) {
-      const pongFrame = Buffer.from([0x8a, 0x00]);
-      client.socket.write(pongFrame);
-      return;
-    }
-
-    // Opcode 1 = Text frame
-    if (opcode === 0x01) {
+  public processClientBuffer(client: WebSocketClient): void {
+    while (client.buffer.length >= 2) {
+      const firstByte = client.buffer[0]!;
+      const secondByte = client.buffer[1]!;
+      const opcode = firstByte & 0x0f;
       const isMasked = (secondByte & 0x80) === 0x80;
       let payloadLength = secondByte & 0x7f;
       let offset = 2;
 
       if (payloadLength === 126) {
-        payloadLength = buffer.readUInt16BE(offset);
+        if (client.buffer.length < offset + 2) {
+          return; // Wait for extended length bytes
+        }
+        payloadLength = client.buffer.readUInt16BE(offset);
         offset += 2;
       } else if (payloadLength === 127) {
-        payloadLength = Number(buffer.readBigUInt64BE(offset));
+        if (client.buffer.length < offset + 8) {
+          return; // Wait for 64-bit length bytes
+        }
+        payloadLength = Number(client.buffer.readBigUInt64BE(offset));
         offset += 8;
       }
 
-      let payloadData: Buffer;
+      let maskingKey: Buffer | null = null;
       if (isMasked) {
-        const maskingKey = buffer.subarray(offset, offset + 4);
+        if (client.buffer.length < offset + 4) {
+          return; // Wait for masking key bytes
+        }
+        maskingKey = client.buffer.subarray(offset, offset + 4);
         offset += 4;
-        payloadData = buffer.subarray(offset, offset + payloadLength);
+      }
+
+      const totalFrameLength = offset + payloadLength;
+      if (client.buffer.length < totalFrameLength) {
+        return; // Wait for complete payload bytes to arrive over TCP
+      }
+
+      let payloadData = client.buffer.subarray(offset, totalFrameLength);
+      if (isMasked && maskingKey) {
         const unmasked = Buffer.alloc(payloadData.length);
         for (let i = 0; i < payloadData.length; i++) {
           unmasked[i] = (payloadData[i] ?? 0) ^ (maskingKey[i % 4] ?? 0);
         }
         payloadData = unmasked;
-      } else {
-        payloadData = buffer.subarray(offset, offset + payloadLength);
       }
 
-      try {
-        const text = payloadData.toString('utf-8');
-        const msg = JSON.parse(text);
-        this.handleMessage(client, msg).catch((err: any) => {
+      // Slice out the processed frame from accumulator
+      client.buffer = client.buffer.subarray(totalFrameLength);
+
+      // Handle Opcode safely
+      if (opcode === 0x08) {
+        // Close frame
+        client.close();
+        return;
+      }
+
+      if (opcode === 0x09) {
+        // Ping frame -> respond Pong (10)
+        const pongFrame = Buffer.from([0x8a, 0x00]);
+        client.socket.write(pongFrame);
+        continue;
+      }
+
+      if (opcode === 0x01) {
+        // Text frame
+        try {
+          const text = payloadData.toString('utf-8');
+          const msg = JSON.parse(text);
+          this.handleMessage(client, msg).catch((err: any) => {
+            client.send({
+              event: 'error',
+              message: err?.message || 'WebSocket message processing error',
+            });
+          });
+        } catch {
           client.send({
             event: 'error',
-            message: err?.message || 'WebSocket message processing error',
+            message: 'Invalid WebSocket message format (malformed JSON)',
           });
-        });
-      } catch {
-        client.send({
-          event: 'error',
-          message: 'Invalid WebSocket message format (malformed JSON)',
-        });
+        }
       }
     }
   }

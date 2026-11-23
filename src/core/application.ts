@@ -181,13 +181,31 @@ export class Application {
    * Export a serverless HTTP handler compatible with Vercel, AWS Lambda, Netlify, etc.
    * Automatically resolves serverless URL rewrites (x-matched-path) and unhandled errors.
    */
-  public serverless(): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  public serverless(options: { trustForwardedPath?: boolean } = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
     return async (req: IncomingMessage, res: ServerResponse) => {
       try {
-        // Resolve Vercel / Serverless rewrites
-        const matchedPath = (req.headers['x-matched-path'] || req.headers['x-forwarded-url']) as string | undefined;
-        if (matchedPath && typeof matchedPath === 'string') {
-          req.url = matchedPath;
+        // Resolve Vercel / Serverless rewrites only in trusted serverless environments or if explicitly trusted
+        const isServerlessEnv =
+          options.trustForwardedPath ??
+          (process.env.VERCEL === '1' ||
+            Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+            process.env.NETLIFY === 'true' ||
+            process.env.TRUST_SERVERLESS_HEADERS === 'true');
+
+        if (isServerlessEnv) {
+          const matchedPath = (req.headers['x-matched-path'] || req.headers['x-forwarded-url']) as string | undefined;
+          if (
+            matchedPath &&
+            typeof matchedPath === 'string' &&
+            matchedPath.startsWith('/') &&
+            !matchedPath.startsWith('//') &&
+            !matchedPath.includes('..') &&
+            !matchedPath.includes('\\')
+          ) {
+            req.url = matchedPath;
+          } else if (req.url === '/api/index.js' || req.url === '/api/index' || req.url?.startsWith('/api/index?')) {
+            req.url = '/';
+          }
         } else if (req.url === '/api/index.js' || req.url === '/api/index' || req.url?.startsWith('/api/index?')) {
           req.url = '/';
         }

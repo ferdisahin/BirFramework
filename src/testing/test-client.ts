@@ -9,6 +9,7 @@ export interface RequestOptions {
 
 export class TestClient {
   private server: http.Server | null = null;
+  private serverPromise: Promise<string> | null = null;
   private port: number = 0;
   private defaultHeaders: Record<string, string> = {};
   private cookies: Map<string, string> = new Map();
@@ -16,19 +17,19 @@ export class TestClient {
   constructor(private app: Application) {}
 
   private async ensureServer(): Promise<string> {
-    if (!this.server) {
-      this.server = http.createServer((req, res) => this.app.handle(req, res));
-      await new Promise<void>((resolve) => {
-        this.server!.listen(0, '127.0.0.1', () => {
+    if (!this.serverPromise) {
+      this.serverPromise = new Promise<string>((resolve) => {
+        this.server = http.createServer((req, res) => this.app.handle(req, res));
+        this.server.listen(0, '127.0.0.1', () => {
           const address = this.server!.address();
           if (address && typeof address === 'object') {
             this.port = address.port;
           }
-          resolve();
+          resolve(`http://127.0.0.1:${this.port}`);
         });
       });
     }
-    return `http://127.0.0.1:${this.port}`;
+    return this.serverPromise;
   }
 
   /**
@@ -39,6 +40,7 @@ export class TestClient {
       await new Promise<void>((resolve) => {
         this.server!.close(() => {
           this.server = null;
+          this.serverPromise = null;
           resolve();
         });
       });

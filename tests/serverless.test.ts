@@ -8,7 +8,7 @@ describe('BirFramework Serverless Adapter Tests', () => {
     const app = new Application();
     app.router.get('/hello', (ctx) => ctx.json({ message: 'Hello Serverless!' }));
 
-    const handler = app.serverless();
+    const handler = app.serverless({ trustForwardedPath: true });
 
     // Mock incoming request
     const req: any = new EventEmitter();
@@ -49,7 +49,7 @@ describe('BirFramework Serverless Adapter Tests', () => {
     const app = new Application();
     app.router.get('/docs/installation', (ctx) => ctx.json({ page: 'installation' }));
 
-    const handler = app.serverless();
+    const handler = app.serverless({ trustForwardedPath: true });
 
     const req: any = new EventEmitter();
     req.method = 'GET';
@@ -99,7 +99,7 @@ describe('BirFramework Serverless Adapter Tests', () => {
         throw new Error('Database password leak: secret12345');
       });
 
-      const handler = app.serverless();
+      const handler = app.serverless({ trustForwardedPath: true });
 
       const req: any = new EventEmitter();
       req.method = 'GET';

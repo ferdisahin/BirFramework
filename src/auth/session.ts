@@ -7,6 +7,7 @@ export interface SessionOptions {
   cookieName?: string;
   maxAge?: number; // seconds
   secure?: boolean;
+  maxSessions?: number; // max in-memory sessions before LRU eviction
 }
 
 export class Session {
@@ -16,7 +17,6 @@ export class Session {
   public isNew: boolean = false;
   public createdAt: number;
   public lastActivity: number;
-  public onRegenerate?: (newId: string) => void;
 
   constructor(id?: string, initialData: Record<string, any> = {}) {
     this.id = id || randomBytes(16).toString('hex');
@@ -34,6 +34,10 @@ export class Session {
     return Date.now() - this.lastActivity > maxAgeSeconds * 1000;
   }
 
+  public isDirty(): boolean {
+    return Object.keys(this.data).length > 0 || Object.keys(this.flashData).length > 0;
+  }
+
   public regenerate(): string {
     const oldId = this.id;
     const newId = randomBytes(16).toString('hex');
@@ -42,14 +46,6 @@ export class Session {
 
     sessionStore.delete(oldId);
     sessionStore.set(newId, this);
-
-    if (this.onRegenerate) {
-      try {
-        this.onRegenerate(newId);
-      } catch {
-        // ignore if headers already sent
-      }
-    }
 
     return newId;
   }
@@ -102,6 +98,7 @@ export class Session {
 
 // In-memory session store (can be extended to Redis/SQLite)
 export const sessionStore = new Map<string, Session>();
+export const DEFAULT_MAX_SESSIONS = 50000;
 
 export function sweepExpiredSessions(maxAgeSeconds: number): number {
   let count = 0;
@@ -112,6 +109,20 @@ export function sweepExpiredSessions(maxAgeSeconds: number): number {
     }
   }
   return count;
+}
+
+export function saveSession(session: Session, maxAgeSeconds: number, maxSessions = DEFAULT_MAX_SESSIONS): void {
+  if (!sessionStore.has(session.id) && sessionStore.size >= maxSessions) {
+    sweepExpiredSessions(maxAgeSeconds);
+    if (sessionStore.size >= maxSessions) {
+      // Evict oldest session (first key in map)
+      const oldestKey = sessionStore.keys().next().value;
+      if (oldestKey) {
+        sessionStore.delete(oldestKey);
+      }
+    }
+  }
+  sessionStore.set(session.id, session);
 }
 
 export class CookieManager {
@@ -193,6 +204,7 @@ let lastSweepTime = Date.now();
 export function sessionMiddleware(options: SessionOptions = {}): Middleware {
   const cookieName = options.cookieName || 'bir_session';
   const maxAge = options.maxAge || 86400 * 7; // 7 days
+  const maxSessions = options.maxSessions || DEFAULT_MAX_SESSIONS;
   const manager = options.secret ? new CookieManager(options.secret) : cookieManager;
 
   return async (ctx: Context, next) => {
@@ -211,20 +223,22 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
       sessionId = manager.unsign(signedSessionId);
     }
 
+    const initialSessionId = sessionId;
     let session: Session;
+    let isExisting = false;
+
     if (sessionId && sessionStore.has(sessionId)) {
       session = sessionStore.get(sessionId)!;
       // Server-side expiration check
       if (session.isExpired(maxAge)) {
         sessionStore.delete(sessionId);
         session = new Session();
-        sessionStore.set(session.id, session);
       } else {
         session.touch();
+        isExisting = true;
       }
     } else {
       session = new Session();
-      sessionStore.set(session.id, session);
     }
 
     // Attach to context
@@ -237,9 +251,13 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
     const isProduction = process.env.NODE_ENV === 'production';
     const secure = options.secure !== undefined ? options.secure : (isProduction || isHttps);
 
-    const applySessionCookie = () => {
+    let cookieWritten = false;
+    // Request-scoped cookie writer: strictly writes to THIS request's response
+    const writeSessionCookie = (idToSign: string) => {
+      if (cookieWritten) return;
       if (!ctx.res.headersSent && !ctx.res.writableEnded) {
-        const signedVal = manager.sign(session.id);
+        cookieWritten = true;
+        const signedVal = manager.sign(idToSign);
         const cookieHeader = manager.serialize(cookieName, signedVal, {
           maxAge,
           httpOnly: true,
@@ -250,17 +268,45 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
       }
     };
 
-    // Attach hook so if session.regenerate() is called in a controller/login, cookie is updated
-    session.onRegenerate = () => {
-      applySessionCookie();
+    if (isExisting) {
+      writeSessionCookie(session.id);
+    }
+
+    // Expose callback on ctx for Auth.login / regenerate
+    (ctx as any)._applySessionCookie = (idToSign: string = session.id) => {
+      saveSession(session, maxAge, maxSessions);
+      writeSessionCookie(idToSign);
     };
 
-    // Set signed cookie on response initially
-    applySessionCookie();
+    // Intercept writeHead and end so dirty/new sessions write Set-Cookie BEFORE headers go out
+    const origWriteHead = ctx.res.writeHead.bind(ctx.res);
+    ctx.res.writeHead = function (statusCode: number, ...args: any[]) {
+      const sessionChanged = (initialSessionId && session.id !== initialSessionId) || Boolean((ctx as any)._sessionNeedsCookie);
+      if (session.isDirty() || sessionChanged) {
+        saveSession(session, maxAge, maxSessions);
+        writeSessionCookie(session.id);
+      }
+      return (origWriteHead as any)(statusCode, ...args);
+    };
+
+    const origEnd = ctx.res.end.bind(ctx.res);
+    ctx.res.end = function (...args: any[]) {
+      const sessionChanged = (initialSessionId && session.id !== initialSessionId) || Boolean((ctx as any)._sessionNeedsCookie);
+      if (session.isDirty() || sessionChanged) {
+        saveSession(session, maxAge, maxSessions);
+        writeSessionCookie(session.id);
+      }
+      return (origEnd as any)(...args);
+    };
 
     await next();
 
-    // Re-apply in case session was regenerated or modified during request handling
-    applySessionCookie();
+    // After handler finishes:
+    // If session ID changed (Auth.login / session.regenerate) or data was written:
+    const sessionChanged = (initialSessionId && session.id !== initialSessionId) || Boolean((ctx as any)._sessionNeedsCookie);
+    if (session.isDirty() || sessionChanged) {
+      saveSession(session, maxAge, maxSessions);
+      writeSessionCookie(session.id);
+    }
   };
 }

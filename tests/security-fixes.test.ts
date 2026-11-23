@@ -370,4 +370,210 @@ describe('BirFramework Security Fixes Verification Tests', () => {
       await new Promise<void>((r) => server.close(() => r()));
     }
   });
+
+  // 9. WebSocket Frame Parser Fragmentation (TCP packet fragmentation handling)
+  test('WebSocket server properly reassembles fragmented TCP frames across data events', async () => {
+    let sentMessages: any[] = [];
+    const mockSocket: any = {
+      destroyed: false,
+      write() {},
+      end() { this.destroyed = true; },
+      on() {},
+    };
+
+    const client = new WebSocketClient(mockSocket);
+    client.send = (data: any) => sentMessages.push(data);
+
+    // Register a test channel
+    Broadcast.channel('chat-room', () => true);
+
+    const fullFrame = WebSocketServer.createFrame(JSON.stringify({ event: 'subscribe', channel: 'chat-room' }));
+
+    // Send the frame in 3 small fragmented chunks:
+    // Chunk 1: first byte only (incomplete header)
+    const chunk1 = fullFrame.subarray(0, 1);
+    // Chunk 2: next 2 bytes (still incomplete or partial length)
+    const chunk2 = fullFrame.subarray(1, 3);
+    // Chunk 3: remainder of frame
+    const chunk3 = fullFrame.subarray(3);
+
+    (Broadcast.server as any).handleFrame(client, chunk1);
+    assert.strictEqual(sentMessages.length, 0, 'No message should be processed with incomplete header');
+
+    (Broadcast.server as any).handleFrame(client, chunk2);
+    assert.strictEqual(sentMessages.length, 0, 'No message should be processed with partial frame');
+
+    (Broadcast.server as any).handleFrame(client, chunk3);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(sentMessages.length, 1, 'Message must be fully assembled and processed');
+    assert.strictEqual(sentMessages[0]?.event, 'subscribed');
+    assert.strictEqual(sentMessages[0]?.channel, 'chat-room');
+  });
+
+  // 10. Anonymous Session Memory Optimization & LRU Eviction
+  test('Anonymous requests with empty sessions do not bloat session store memory', async () => {
+    const { Application } = await import('../src/core/application.js');
+    const { createTestClient } = await import('../src/testing/index.js');
+
+    sessionStore.clear();
+    const app = new Application();
+    app.router.get('/public', (ctx) => {
+      ctx.json({ ok: true, active: ctx.session?.id ? true : false });
+    });
+
+    const client = createTestClient(app);
+    try {
+      const initialSize = sessionStore.size;
+
+      // Make multiple anonymous requests
+      for (let i = 0; i < 5; i++) {
+        const res = await client.get('/public');
+        res.assertOk();
+      }
+
+      // Memory store must NOT retain empty anonymous sessions
+      assert.strictEqual(sessionStore.size, initialSize, 'Empty anonymous sessions must not be stored in sessionStore');
+    } finally {
+      await client.close();
+      sessionStore.clear();
+    }
+  });
+
+  // 11. Serverless Rewrite Header Spoofing Protection
+  test('Serverless handler ignores untrusted x-matched-path unless in a trusted serverless env', async () => {
+    const { Application } = await import('../src/core/application.js');
+
+    const app = new Application();
+    let handledUrl = '';
+    app.router.get('/actual-route', (ctx) => {
+      handledUrl = ctx.req.url || '';
+      ctx.text('actual');
+    });
+    app.router.get('/secret-admin', (ctx) => {
+      handledUrl = ctx.req.url || '';
+      ctx.text('secret');
+    });
+
+    const handler = app.serverless();
+
+    // Case A: Outside serverless environment (headers must be ignored)
+    const deleteEnv = () => {
+      delete process.env.VERCEL;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+      delete process.env.NETLIFY;
+      delete process.env.TRUST_SERVERLESS_HEADERS;
+    };
+    deleteEnv();
+
+    const reqUntrusted: any = new EventEmitter();
+    reqUntrusted.method = 'GET';
+    reqUntrusted.url = '/actual-route';
+    reqUntrusted.headers = {
+      host: 'example.com',
+      'x-matched-path': '/secret-admin',
+    };
+    reqUntrusted.socket = { remoteAddress: '127.0.0.1' };
+
+    const resUntrusted: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader() {},
+      writeHead() {},
+      end() { this.writableEnded = true; },
+    };
+
+    await handler(reqUntrusted, resUntrusted);
+    assert.strictEqual(reqUntrusted.url, '/actual-route', 'Untrusted x-matched-path must be ignored in standard env');
+
+    // Case B: Inside trusted serverless env (VERCEL=1) with valid path
+    process.env.VERCEL = '1';
+    try {
+      const reqTrusted: any = new EventEmitter();
+      reqTrusted.method = 'GET';
+      reqTrusted.url = '/api/index.js';
+      reqTrusted.headers = {
+        host: 'example.com',
+        'x-matched-path': '/actual-route',
+      };
+      reqTrusted.socket = { remoteAddress: '127.0.0.1' };
+
+      const resTrusted: any = {
+        writableEnded: false,
+        statusCode: 200,
+        setHeader() {},
+        writeHead() {},
+        end() { this.writableEnded = true; },
+      };
+
+      await handler(reqTrusted, resTrusted);
+      assert.strictEqual(reqTrusted.url, '/actual-route', 'Trusted x-matched-path must be applied');
+
+      // Case C: Malicious path traversal or protocol relative URL must be rejected
+      const reqMalicious: any = new EventEmitter();
+      reqMalicious.method = 'GET';
+      reqMalicious.url = '/actual-route';
+      reqMalicious.headers = {
+        host: 'example.com',
+        'x-matched-path': '//malicious.com/secret',
+      };
+      reqMalicious.socket = { remoteAddress: '127.0.0.1' };
+
+      const resMalicious: any = {
+        writableEnded: false,
+        statusCode: 200,
+        setHeader() {},
+        writeHead() {},
+        end() { this.writableEnded = true; },
+      };
+
+      await handler(reqMalicious, resMalicious);
+      assert.strictEqual(reqMalicious.url, '/actual-route', 'Malicious x-matched-path must be rejected');
+    } finally {
+      deleteEnv();
+    }
+  });
+
+  // 12. Concurrent Request Session Cookie Isolation
+  test('Concurrent requests do not overwrite each other session cookies or contexts', async () => {
+    const { Application } = await import('../src/core/application.js');
+    const { createTestClient } = await import('../src/testing/index.js');
+
+    const app = new Application();
+    app.router.post('/login-user1', async (ctx) => {
+      await new Promise((r) => setTimeout(r, 15));
+      await Auth.login(ctx, { id: 101, name: 'User 1' });
+      ctx.json({ user: 101, sessionId: ctx.session.id });
+    });
+
+    app.router.post('/login-user2', async (ctx) => {
+      await Auth.login(ctx, { id: 202, name: 'User 2' });
+      ctx.json({ user: 202, sessionId: ctx.session.id });
+    });
+
+    const client = createTestClient(app);
+    try {
+      const [res1, res2] = await Promise.all([
+        client.post('/login-user1'),
+        client.post('/login-user2'),
+      ]);
+
+      res1.assertOk();
+      res2.assertOk();
+
+      const json1 = res1.json();
+      const json2 = res2.json();
+
+      assert.notStrictEqual(json1.sessionId, json2.sessionId, 'Concurrent logins must have different session IDs');
+      assert.strictEqual(json1.user, 101);
+      assert.strictEqual(json2.user, 202);
+
+      const cookie1 = res1.headers.get('set-cookie');
+      const cookie2 = res2.headers.get('set-cookie');
+
+      assert.ok(cookie1?.includes(json1.sessionId), 'Response 1 must contain session 1 cookie');
+      assert.ok(cookie2?.includes(json2.sessionId), 'Response 2 must contain session 2 cookie');
+    } finally {
+      await client.close();
+    }
+  });
 });
