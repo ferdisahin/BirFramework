@@ -516,9 +516,41 @@ app.listen(PORT, '0.0.0.0', (port) => {
 `;
   writeFileSync(join(projectDir, `app.${ext}`), appContent, 'utf-8');
 
+  // 9. Vercel Serverless Ready Configuration
+  mkdirSync(join(projectDir, 'api'), { recursive: true });
+  const vercelConfig = {
+    outputDirectory: "public",
+    functions: {
+      "api/index.js": {
+        includeFiles: [
+          "views/**",
+          "public/build/**"
+        ]
+      }
+    },
+    rewrites: [
+      {
+        source: "/(.*)",
+        destination: "/api/index.js"
+      }
+    ]
+  };
+  writeFileSync(join(projectDir, 'vercel.json'), JSON.stringify(vercelConfig, null, 2) + '\n', 'utf-8');
+
+  const vercelApiIndex = `import { Application, logger } from 'birframework';
+import '../routes/web.js';
+
+const app = new Application();
+app.use(logger());
+
+export default app.serverless();
+`;
+  writeFileSync(join(projectDir, 'api/index.js'), vercelApiIndex, 'utf-8');
+
   console.log(`\x1b[32m✔ Project created successfully!\x1b[0m`);
   console.log(`\nTo get started:\n`);
   console.log(`  cd ${name}`);
   console.log(`  npm install`);
   console.log(`  npm run dev\n`);
+  console.log(`\x1b[90m⚡ Deploy to Vercel instantly: run 'vercel' or push to GitHub (pre-configured)\x1b[0m\n`);
 }

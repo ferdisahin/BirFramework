@@ -403,3 +403,55 @@ export default ${cleanName};
   writeFileSync(targetPath, template, 'utf-8');
   console.log(`\x1b[32m✔ Form Request created successfully:\x1b[0m app/requests/${cleanName}.ts`);
 }
+
+export function makeVercel() {
+  const rootDir = process.cwd();
+  const apiDir = resolve(rootDir, 'api');
+  const vercelJsonPath = resolve(rootDir, 'vercel.json');
+  const apiIndexPath = resolve(apiDir, 'index.js');
+
+  if (!existsSync(apiDir)) {
+    mkdirSync(apiDir, { recursive: true });
+  }
+
+  // 1. vercel.json
+  const vercelConfig = {
+    outputDirectory: "public",
+    functions: {
+      "api/index.js": {
+        includeFiles: [
+          "views/**",
+          "docs/**",
+          "public/build/**"
+        ]
+      }
+    },
+    rewrites: [
+      {
+        source: "/(.*)",
+        destination: "/api/index.js"
+      }
+    ]
+  };
+
+  writeFileSync(vercelJsonPath, JSON.stringify(vercelConfig, null, 2) + '\n', 'utf-8');
+  console.log(`\x1b[32m✔ Created:\x1b[0m vercel.json`);
+
+  // 2. api/index.js
+  const apiIndexContent = `import { Application, logger } from 'birframework';
+import '../routes/web.js';
+
+const app = new Application();
+app.use(logger());
+
+export default app.serverless();
+`;
+
+  writeFileSync(apiIndexPath, apiIndexContent, 'utf-8');
+  console.log(`\x1b[32m✔ Created:\x1b[0m api/index.js`);
+
+  console.log(`\n\x1b[36m🚀 Vercel serverless configuration ready!\x1b[0m`);
+  console.log(`\x1b[90mYou can now deploy by running:\x1b[0m`);
+  console.log(`  \x1b[32mvercel\x1b[0m  \x1b[90m(or push to GitHub)\x1b[0m\n`);
+}
+

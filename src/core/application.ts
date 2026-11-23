@@ -176,4 +176,43 @@ export class Application {
       this.server.close((err) => (err ? reject(err) : resolve()));
     });
   }
+
+  /**
+   * Export a serverless HTTP handler compatible with Vercel, AWS Lambda, Netlify, etc.
+   * Automatically resolves serverless URL rewrites (x-matched-path) and unhandled errors.
+   */
+  public serverless(): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+    return async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        // Resolve Vercel / Serverless rewrites
+        const matchedPath = (req.headers['x-matched-path'] || req.headers['x-forwarded-url']) as string | undefined;
+        if (matchedPath && typeof matchedPath === 'string') {
+          req.url = matchedPath;
+        } else if (req.url === '/api/index.js' || req.url === '/api/index' || req.url?.startsWith('/api/index?')) {
+          req.url = '/';
+        }
+
+        await this.handle(req, res);
+      } catch (err: any) {
+        if (!res.writableEnded) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.end(`
+            <div style="font-family:system-ui,-apple-system,sans-serif; padding:2.5rem; max-width:800px; margin:2rem auto; border:1px solid #fecdd3; border-radius:12px; background:#fff1f2;">
+              <h1 style="color:#e11d48; font-size:1.5rem; font-weight:700; margin-top:0;">BirFramework Serverless Error</h1>
+              <p style="color:#4c0519; font-size:0.95rem; line-height:1.5;">${err?.message || 'Internal Server Error'}</p>
+              <pre style="background:#18181b; color:#f4f4f5; padding:1.25rem; border-radius:8px; font-size:0.8rem; overflow:auto; line-height:1.4;">${err?.stack || ''}</pre>
+            </div>
+          `);
+        }
+      }
+    };
+  }
+}
+
+/**
+ * Helper function to create a Vercel/Serverless handler from an Application instance
+ */
+export function createVercelHandler(app: Application): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  return app.serverless();
 }
