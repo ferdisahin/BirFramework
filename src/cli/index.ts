@@ -1,4 +1,4 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
@@ -88,6 +88,11 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'make:job': {
       makeJob(args[1] || '');
+      break;
+    }
+
+    case 'make:mail': {
+      makeMail(args[1] || '');
       break;
     }
 
@@ -235,6 +240,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:model <name> [-m]\x1b[0m    Scaffold a new Model (with optional migration)');
       console.log('  \x1b[32mmake:migration <name>\x1b[0m     Scaffold a new Migration file');
       console.log('  \x1b[32mmake:job <name>\x1b[0m           Scaffold a new Background Job class');
+      console.log('  \x1b[32mmake:mail <name>\x1b[0m          Scaffold a new Mailable class');
       console.log('  \x1b[32mmake:seeder <name>\x1b[0m        Scaffold a new Database Seeder');
       console.log('  \x1b[32mmake:factory <name>\x1b[0m       Scaffold a new Model Factory');
       console.log('  \x1b[32mmake:event <name>\x1b[0m         Scaffold a new Event class');

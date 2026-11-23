@@ -1,6 +1,7 @@
 import type { CacheDriver } from './driver.js';
 import { MemoryStore } from './drivers/memory.js';
 import { FileStore } from './drivers/file.js';
+import { RedisStore } from './drivers/redis.js';
 
 export class CacheManager {
   private stores = new Map<string, CacheDriver>();
@@ -10,6 +11,7 @@ export class CacheManager {
     this.defaultStore = process.env.CACHE_STORE || process.env.CACHE_DRIVER || 'memory';
     this.stores.set('memory', new MemoryStore());
     this.stores.set('file', new FileStore());
+    this.stores.set('redis', new RedisStore());
   }
 
   /**

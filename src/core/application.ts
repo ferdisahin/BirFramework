@@ -7,6 +7,7 @@ import { Container, app as defaultContainer } from '../container/container.js';
 import { serveStatic } from '../http/static.js';
 import { sessionMiddleware } from '../auth/session.js';
 import { ErrorHandler } from '../errors/handler.js';
+import { Broadcast } from '../broadcasting/index.js';
 import '../core/env.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -137,6 +138,11 @@ export class Application {
 
     this.server = createServer(async (req, res) => {
       await this.handle(req, res);
+    });
+
+    // Attach WebSocket upgrade handler for Bir Broadcast
+    this.server.on('upgrade', (req, socket, head) => {
+      Broadcast.server.handleUpgrade(req, socket, head);
     });
 
     this.server.on('error', (err: any) => {

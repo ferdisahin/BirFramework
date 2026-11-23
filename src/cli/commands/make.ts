@@ -171,6 +171,41 @@ export default {
   console.log(`\x1b[32m✔ Migration created successfully:\x1b[0m database/migrations/${filename}`);
 }
 
+export function makeMail(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a mailable name. E.g.: bir make:mail WelcomeNotification');
+    return;
+  }
+
+  const cleanName = name.endsWith('Mail') ? name : `${name}Mail`;
+  const targetPath = resolve(process.cwd(), 'app/mail', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Mailable ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const template = `import { Mailable } from 'birframework';
+
+export class ${cleanName} extends Mailable {
+  constructor(public user: any) {
+    super();
+  }
+
+  public override build(): this {
+    return this.subject('Welcome to our Platform')
+               .view('emails.welcome', { user: this.user });
+  }
+}
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Mailable created successfully:\x1b[0m app/mail/${cleanName}.ts`);
+}
+
 export function makeJob(name: string) {
   if (!name) {
     console.error('\x1b[31m[Error]\x1b[0m You must specify a job name. E.g.: bir make:job SendWelcomeEmail');
