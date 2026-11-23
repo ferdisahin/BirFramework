@@ -7,6 +7,7 @@ import { migrator } from '../database/migrator.js';
 import { worker } from '../queue/worker.js';
 import { Schedule } from '../schedule/schedule.js';
 import { SeederRunner } from '../database/seeder.js';
+import { VERSION } from '../version.js';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -173,7 +174,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
  | |_) | | |   | |  | | | (_| | | | | | |  __/\\ V  V / (_) | |  |   < 
  |____/|_|_|   |_|  |_|  \\__,_|_| |_| |_|\\___| \\_/\\_/ \\___/|_|  |_|\\_\\` +
       '\x1b[0m');
-      console.log('\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v0.1.4)\x1b[0m\n');
+      console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
       console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css]\x1b[0m Create a new project (Tailwind default)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');

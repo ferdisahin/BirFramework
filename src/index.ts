@@ -12,6 +12,7 @@ export * from './queue/index.js';
 export * from './mail/index.js';
 export * from './schedule/index.js';
 export * from './security/index.js';
+export * from './version.js';
 
 
 

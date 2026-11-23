@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { birScripts } from './turbo.js';
 import { parseMarkdown } from './markdown.js';
+import { VERSION } from '../version.js';
 
 export type MarkdownParser = (markdown: string) => string;
 
@@ -35,7 +36,11 @@ export class ViewEngine {
 
   public render(templateName: string, data: Record<string, any> = {}): string {
     const rawTemplate = this.loadTemplate(templateName);
-    return this.compile(rawTemplate, data);
+    const viewScope = {
+      version: VERSION,
+      ...data,
+    };
+    return this.compile(rawTemplate, viewScope);
   }
 
   public loadTemplate(name: string): string {

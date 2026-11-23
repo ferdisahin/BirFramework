@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { VERSION } from '../../version.js';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
@@ -92,7 +93,7 @@ export async function createNewProject(
       start: isTS ? 'npx tsx app.ts' : 'node app.js',
     },
     dependencies: {
-      birframework: '^0.1.4',
+      birframework: `^${VERSION}`,
     },
     devDependencies: isTS
       ? {
@@ -157,7 +158,7 @@ export class HomeController {
   public async index(ctx: Context) {
     return ctx.render('welcome', {
       title: 'BirFramework',
-      version: '0.1.4',
+      version: '${VERSION}',
       nodeVersion: process.version,
     });
   }
@@ -167,7 +168,7 @@ export class HomeController {
   async index(ctx) {
     return ctx.render('welcome', {
       title: 'BirFramework',
-      version: '0.1.4',
+      version: '${VERSION}',
       nodeVersion: process.version,
     });
   }
