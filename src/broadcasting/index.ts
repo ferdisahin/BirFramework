@@ -181,15 +181,57 @@ export class WebSocketServer {
       try {
         const text = payloadData.toString('utf-8');
         const msg = JSON.parse(text);
-        this.handleMessage(client, msg);
+        this.handleMessage(client, msg).catch((err: any) => {
+          client.send({
+            event: 'error',
+            message: err?.message || 'WebSocket message processing error',
+          });
+        });
       } catch {
-        // invalid JSON or binary
+        client.send({
+          event: 'error',
+          message: 'Invalid WebSocket message format (malformed JSON)',
+        });
       }
     }
   }
 
   private async handleMessage(client: WebSocketClient, msg: any): Promise<void> {
-    if (msg.event === 'subscribe' && msg.channel) {
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+      client.send({
+        event: 'error',
+        message: 'Invalid message: expected a JSON object',
+      });
+      return;
+    }
+
+    if (typeof msg.event !== 'string') {
+      client.send({
+        event: 'error',
+        message: 'Invalid message: "event" must be a string',
+      });
+      return;
+    }
+
+    if (msg.channel !== undefined) {
+      if (typeof msg.channel !== 'string' || msg.channel.length === 0 || msg.channel.length > 255) {
+        client.send({
+          event: 'error',
+          message: 'Invalid message: "channel" must be a non-empty string under 256 characters',
+        });
+        return;
+      }
+    }
+
+    if (msg.event === 'subscribe') {
+      if (!msg.channel) {
+        client.send({
+          event: 'error',
+          message: 'Missing "channel" for subscription',
+        });
+        return;
+      }
+
       const allowed = await this.canSubscribe(client, msg.channel, msg.auth);
       if (!allowed) {
         client.send({
@@ -201,9 +243,11 @@ export class WebSocketServer {
       }
       this.join(client, msg.channel);
       client.send({ event: 'subscribed', channel: msg.channel });
-    } else if (msg.event === 'unsubscribe' && msg.channel) {
-      this.leave(client, msg.channel);
-      client.send({ event: 'unsubscribed', channel: msg.channel });
+    } else if (msg.event === 'unsubscribe') {
+      if (msg.channel) {
+        this.leave(client, msg.channel);
+        client.send({ event: 'unsubscribed', channel: msg.channel });
+      }
     }
   }
 

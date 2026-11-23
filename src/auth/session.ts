@@ -16,6 +16,7 @@ export class Session {
   public isNew: boolean = false;
   public createdAt: number;
   public lastActivity: number;
+  public onRegenerate?: (newId: string) => void;
 
   constructor(id?: string, initialData: Record<string, any> = {}) {
     this.id = id || randomBytes(16).toString('hex');
@@ -41,6 +42,15 @@ export class Session {
 
     sessionStore.delete(oldId);
     sessionStore.set(newId, this);
+
+    if (this.onRegenerate) {
+      try {
+        this.onRegenerate(newId);
+      } catch {
+        // ignore if headers already sent
+      }
+    }
+
     return newId;
   }
 
@@ -227,16 +237,30 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
     const isProduction = process.env.NODE_ENV === 'production';
     const secure = options.secure !== undefined ? options.secure : (isProduction || isHttps);
 
-    // Set signed cookie on response
-    const signedVal = manager.sign(session.id);
-    const cookieHeader = manager.serialize(cookieName, signedVal, {
-      maxAge,
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure,
-    });
-    ctx.header('Set-Cookie', cookieHeader);
+    const applySessionCookie = () => {
+      if (!ctx.res.headersSent && !ctx.res.writableEnded) {
+        const signedVal = manager.sign(session.id);
+        const cookieHeader = manager.serialize(cookieName, signedVal, {
+          maxAge,
+          httpOnly: true,
+          sameSite: 'Lax',
+          secure,
+        });
+        ctx.header('Set-Cookie', cookieHeader);
+      }
+    };
+
+    // Attach hook so if session.regenerate() is called in a controller/login, cookie is updated
+    session.onRegenerate = () => {
+      applySessionCookie();
+    };
+
+    // Set signed cookie on response initially
+    applySessionCookie();
 
     await next();
+
+    // Re-apply in case session was regenerated or modified during request handling
+    applySessionCookie();
   };
 }

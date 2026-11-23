@@ -280,8 +280,15 @@ export class Context {
           this.req.removeListener('data', onData);
           this.req.removeListener('end', onEnd);
           this.req.removeListener('error', onError);
-          this.res.statusCode = 413;
-          this.req.destroy();
+
+          // Drain incoming stream without buffering in RAM to prevent premature socket RST
+          this.req.resume();
+
+          if (!this.res.headersSent) {
+            this.res.setHeader('Connection', 'close');
+            this.res.statusCode = 413;
+          }
+
           reject(
             new PayloadTooLargeError(`Payload Too Large: Request body exceeded limit of ${maxSize} bytes`)
           );

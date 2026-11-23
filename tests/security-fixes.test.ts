@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { EventEmitter } from 'node:events';
-import { Broadcast, WebSocketClient } from '../src/broadcasting/index.js';
+import { Broadcast, WebSocketClient, WebSocketServer } from '../src/broadcasting/index.js';
 import { Context, PayloadTooLargeError } from '../src/http/context.js';
 import { CookieManager, Session, sessionStore } from '../src/auth/session.js';
 import { Auth } from '../src/auth/auth.js';
@@ -215,5 +215,159 @@ describe('BirFramework Security Fixes Verification Tests', () => {
     await middleware(ctx, async () => { nextCalled = true; });
 
     assert.strictEqual(nextCalled, true);
+  });
+
+  // 6. Session Cookie Updated on Auth.login and Persists Across Next Request
+  test('Auth.login updates Set-Cookie with regenerated ID and allows subsequent requests to authenticate', async () => {
+    const { Application } = await import('../src/core/application.js');
+    const { createTestClient } = await import('../src/testing/index.js');
+
+    const app = new Application();
+    app.router.post('/login', async (ctx) => {
+      await Auth.login(ctx, { id: 77, name: 'SecureUser' });
+      ctx.json({ success: true, sessionId: ctx.session.id });
+    });
+
+    app.router.get('/profile', (ctx) => {
+      ctx.json({
+        authenticated: Auth.check(ctx),
+        userId: Auth.id(ctx),
+        sessionId: ctx.session?.id,
+      });
+    });
+
+    const client = createTestClient(app);
+    try {
+      // 1. Initial login request
+      const loginRes = await client.post('/login');
+      loginRes.assertOk();
+
+      // Extract Set-Cookie header
+      const setCookieHeader = loginRes.headers.get('set-cookie');
+      assert.ok(setCookieHeader, 'Set-Cookie header must be present on login response');
+
+      const loginJson = loginRes.json();
+      assert.ok(loginJson.sessionId);
+
+      // Verify the cookie contains the regenerated session ID
+      assert.ok(
+        setCookieHeader.includes(loginJson.sessionId),
+        'Set-Cookie must contain the regenerated session ID, not the old ID'
+      );
+
+      // 2. Next request (client automatically passes session cookie)
+      const profileRes = await client.get('/profile');
+      profileRes.assertOk();
+
+      const profileJson = profileRes.json();
+      assert.strictEqual(profileJson.authenticated, true, 'User must remain authenticated on subsequent request');
+      assert.strictEqual(profileJson.userId, 77);
+      assert.strictEqual(profileJson.sessionId, loginJson.sessionId);
+    } finally {
+      await client.close();
+    }
+  });
+
+  // 7. WebSocket Message Validation and Async Error Resilience
+  test('WebSocket server validates message structure and handles async authorizer rejections safely', async () => {
+    let sentMessages: any[] = [];
+    const mockSocket: any = {
+      destroyed: false,
+      write() {},
+      end() { this.destroyed = true; },
+      on() {},
+    };
+
+    const client = new WebSocketClient(mockSocket);
+    client.send = (data: any) => sentMessages.push(data);
+
+    // Register authorizer that throws an unexpected async error
+    Broadcast.channel('private-failing.{id}', async () => {
+      throw new Error('Database connection failed during auth check');
+    });
+
+    // A. Send invalid channel type (non-string)
+    sentMessages = [];
+    (Broadcast.server as any).handleFrame(
+      client,
+      WebSocketServer.createFrame(JSON.stringify({ event: 'subscribe', channel: 12345 }))
+    );
+    assert.strictEqual(sentMessages[0]?.event, 'error');
+    assert.ok(sentMessages[0]?.message.includes('channel'));
+
+    // B. Send malformed message (array instead of object)
+    sentMessages = [];
+    (Broadcast.server as any).handleFrame(
+      client,
+      WebSocketServer.createFrame(JSON.stringify(['not', 'an', 'object']))
+    );
+    assert.strictEqual(sentMessages[0]?.event, 'error');
+
+    // C. Send subscription to channel whose authorizer throws an async error
+    sentMessages = [];
+    (Broadcast.server as any).handleFrame(
+      client,
+      WebSocketServer.createFrame(JSON.stringify({ event: 'subscribe', channel: 'private-failing.1' }))
+    );
+
+    // Wait microtask for async authorizer
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Must receive subscription_error and process must NOT crash from unhandled rejection
+    assert.strictEqual(sentMessages[0]?.event, 'subscription_error');
+    assert.strictEqual(sentMessages[0]?.channel, 'private-failing.1');
+  });
+
+  // 8. Integration Test for Stream Body Limit (413 Payload Too Large on Chunked Request)
+  test('Streaming chunked request exceeding body limit receives 413 Payload Too Large without socket hang up', async () => {
+    const http = await import('node:http');
+    const { Application } = await import('../src/core/application.js');
+
+    const app = new Application();
+    app.router.post('/stream-upload', async (ctx) => {
+      // Force small limit of 5000 bytes for this test
+      const body = await (ctx as any).readRawBodyBuffer(5000);
+      ctx.json({ size: body.length });
+    });
+
+    const server = http.createServer((req, res) => app.handle(req, res));
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const port = (server.address() as any).port;
+
+    try {
+      const responseStatus = await new Promise<number>((resolve, reject) => {
+        const req = http.request(
+          {
+            hostname: '127.0.0.1',
+            port,
+            path: '/stream-upload',
+            method: 'POST',
+            headers: {
+              'Transfer-Encoding': 'chunked',
+              'Content-Type': 'application/octet-stream',
+            },
+          },
+          (res) => {
+            res.resume(); // consume response body
+            resolve(res.statusCode || 0);
+          }
+        );
+
+        req.on('error', (err) => reject(err));
+
+        // Write chunks totaling 15,000 bytes (exceeding 5,000 bytes limit)
+        const chunk = Buffer.alloc(3000, 'x');
+        req.write(chunk);
+        req.write(chunk);
+        req.write(chunk);
+        req.write(chunk);
+        req.write(chunk);
+        req.end();
+      });
+
+      assert.strictEqual(responseStatus, 413, 'Client must receive HTTP 413 Payload Too Large');
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   });
 });
