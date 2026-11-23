@@ -67,7 +67,7 @@ export class Application {
     if (this.fileWatcherInitialized) return;
     this.fileWatcherInitialized = true;
 
-    const dirsToWatch = ['views', 'public', 'routes', 'app'];
+    const dirsToWatch = ['views', 'public', 'routes', 'app', 'docs'];
     let debounceTimer: NodeJS.Timeout | null = null;
 
     for (const dir of dirsToWatch) {

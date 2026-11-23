@@ -60,6 +60,32 @@ export function parseMarkdown(markdown: string): string {
   html = html.replace(/<\/ol>\s*<ol>/g, '');
   html = html.replace(/<oli>/g, '<li>').replace(/<\/oli>/g, '</li>');
 
+  // 8.5. Tables: | col1 | col2 |
+  html = html.replace(/(?:^|\n)([ \t]*\|[^\r\n]+\|[ \t]*\r?\n[ \t]*\|[-: |]+\|[ \t]*\r?\n(?:[ \t]*\|[^\r\n]+\|[ \t]*(?:\r?\n|$))+)/g, (match) => {
+    const lines = match.trim().split('\n').map((l) => l.trim());
+    if (lines.length < 2 || !lines[0]) return match;
+    const headerCols = lines[0]
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((c) => `<th>${c.trim()}</th>`)
+      .join('');
+    const thead = `<thead><tr>${headerCols}</tr></thead>`;
+    const tbodyRows = lines
+      .slice(2)
+      .map((row) => {
+        const cols = row
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
+          .split('|')
+          .map((c) => `<td>${c.trim()}</td>`)
+          .join('');
+        return `<tr>${cols}</tr>`;
+      })
+      .join('');
+    return `\n<table>${thead}<tbody>${tbodyRows}</tbody></table>\n`;
+  });
+
   // 9. Images: ![alt](url)
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
 

@@ -184,12 +184,13 @@ describe('BirFramework View Engine & Directive Tests', () => {
   test('should compile @markdown(variable) expression into HTML', () => {
     const template = `<div>@markdown(article.body)</div>`;
     const compiled = defaultViewEngine.compile(template, {
-      article: { body: '## Subtitle\n- First item\n- Second item' }
+      article: { body: '## Subtitle\n- First item\n- Second item\n\n| Command | Description |\n| --- | --- |\n| bir new | Create app |' }
     });
 
     assert.ok(compiled.includes('<h2>Subtitle</h2>'));
     assert.ok(compiled.includes('<li>First item</li>'));
     assert.ok(compiled.includes('<li>Second item</li>'));
+    assert.ok(compiled.includes('<table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>bir new</td><td>Create app</td></tr></tbody></table>'));
   });
 });
 
