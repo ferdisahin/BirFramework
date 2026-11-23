@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import type { Server } from 'node:http';
 import { Application } from '../src/core/application.js';
 import { app } from '../example/app.js';
-import { defaultViewEngine } from '../src/view/engine.js';
+import { defaultViewEngine, ViewEngine } from '../src/view/engine.js';
 import { paginate } from '../src/pagination/index.js';
 
 describe('BirFramework HTTP & Router Tests', () => {
@@ -104,6 +104,28 @@ describe('BirFramework Modern Blade Component & Slot Tests', () => {
     const compiled = defaultViewEngine.compile(template);
     assert.ok(compiled.includes('<title>Hello World</title>'));
     assert.ok(compiled.includes('<p>Main body content</p>'));
+  });
+
+  test('should not escape HTML when rendering {{ $slot }} or {{ slot }} in components (Laravel Blade parity)', () => {
+    const customTemplate = `
+      <div>
+        {{ $slot }}
+      </div>
+    `;
+    // Register custom component inline or via engine
+    const engineWithComponent = new ViewEngine({
+      viewsPath: process.cwd(),
+      customDirectives: {},
+    });
+    // Test that a template containing html elements inside slot is not escaped
+    const input = `
+      <x-card title="Test">
+        <div class="user-profile"><span>Active</span></div>
+      </x-card>
+    `;
+    const compiled = defaultViewEngine.compile(input);
+    assert.ok(compiled.includes('<div class="user-profile"><span>Active</span></div>'));
+    assert.ok(!compiled.includes('&lt;div class="user-profile"&gt;'));
   });
 
   test('should support named slots <x-slot name="after"> and <x-slot:header>', () => {

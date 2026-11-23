@@ -252,7 +252,18 @@ export class ViewEngine {
         }
 
         const val = this.resolveVariable(cleanVar, scope);
-        return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
+        if (val === undefined || val === null) return '';
+
+        // Blade Slot compatibility: Laravel $slot and component slots are Htmlable (rendered unescaped)
+        const rawSlots = (scope as Record<string, any>).__rawSlots;
+        if (
+          cleanVar === 'slot' ||
+          (Array.isArray(rawSlots) && (rawSlots.includes(cleanVar) || rawSlots.includes(trimmed)))
+        ) {
+          return String(val);
+        }
+
+        return this.escapeHtml(String(val));
       });
 
       // 7. Top-level restoration of protected Raw/Markdown blocks
@@ -295,6 +306,7 @@ export class ViewEngine {
           slot: slots.defaultSlot,
           $slot: slots.defaultSlot,
           ...slots.namedSlots,
+          __rawSlots: ['slot', '$slot', ...Object.keys(slots.namedSlots)],
         };
 
         const componentTemplate = this.loadTemplate(componentName);
