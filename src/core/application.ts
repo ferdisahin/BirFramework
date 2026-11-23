@@ -3,7 +3,7 @@ import { watch, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Context } from '../http/context.js';
 import { Router, defaultRouter } from '../router/router.js';
-import { Container, app as defaultContainer } from '../container/container.js';
+import { Container } from '../container/container.js';
 import { serveStatic } from '../http/static.js';
 import { sessionMiddleware } from '../auth/session.js';
 import { ErrorHandler } from '../errors/handler.js';
@@ -25,8 +25,8 @@ export class Application {
   private fileWatcherInitialized: boolean = false;
 
   constructor(options: ApplicationOptions = {}) {
-    this.router = options.router || defaultRouter;
-    this.container = options.container || defaultContainer;
+    this.router = options.router || new Router(defaultRouter);
+    this.container = options.container || new Container();
 
     // Register self in container
     this.container.singleton(Application, this);
@@ -195,15 +195,61 @@ export class Application {
         await this.handle(req, res);
       } catch (err: any) {
         if (!res.writableEnded) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'text/html; charset=utf-8');
-          res.end(`
-            <div style="font-family:system-ui,-apple-system,sans-serif; padding:2.5rem; max-width:800px; margin:2rem auto; border:1px solid #fecdd3; border-radius:12px; background:#fff1f2;">
-              <h1 style="color:#e11d48; font-size:1.5rem; font-weight:700; margin-top:0;">BirFramework Serverless Error</h1>
-              <p style="color:#4c0519; font-size:0.95rem; line-height:1.5;">${err?.message || 'Internal Server Error'}</p>
-              <pre style="background:#18181b; color:#f4f4f5; padding:1.25rem; border-radius:8px; font-size:0.8rem; overflow:auto; line-height:1.4;">${err?.stack || ''}</pre>
-            </div>
-          `);
+          const isProduction = process.env.NODE_ENV === 'production';
+          const isDebug = process.env.APP_DEBUG === 'true';
+          const ctx = new Context(req, res);
+
+          try {
+            await ErrorHandler.handleException(ctx, err);
+          } catch {
+            if (!res.writableEnded) {
+              res.statusCode = 500;
+              const wantsJson =
+                req.headers['accept']?.includes('application/json') ||
+                req.url?.startsWith('/api/') ||
+                req.url === '/api';
+
+              if (wantsJson) {
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                const body =
+                  isProduction && !isDebug
+                    ? { error: 'Internal Server Error', message: 'Server Error' }
+                    : { error: 'Internal Server Error', message: err?.message || 'Server Error', stack: err?.stack };
+                res.end(JSON.stringify(body));
+              } else {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                if (isProduction && !isDebug) {
+                  res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>500 - Server Error</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #000; color: #f4f4f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .box { text-align: center; }
+    h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #ffffff; }
+    p { color: #71717a; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>500 Server Error</h1>
+    <p>An unexpected error occurred. Please try again later.</p>
+  </div>
+</body>
+</html>`);
+                } else {
+                  res.end(`
+                    <div style="font-family:system-ui,-apple-system,sans-serif; padding:2.5rem; max-width:800px; margin:2rem auto; border:1px solid #fecdd3; border-radius:12px; background:#fff1f2;">
+                      <h1 style="color:#e11d48; font-size:1.5rem; font-weight:700; margin-top:0;">BirFramework Serverless Error</h1>
+                      <p style="color:#4c0519; font-size:0.95rem; line-height:1.5;">${err?.message || 'Internal Server Error'}</p>
+                      <pre style="background:#18181b; color:#f4f4f5; padding:1.25rem; border-radius:8px; font-size:0.8rem; overflow:auto; line-height:1.4;">${err?.stack || ''}</pre>
+                    </div>
+                  `);
+                }
+              }
+            }
+          }
         }
       }
     };

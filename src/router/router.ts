@@ -20,9 +20,20 @@ export interface ResourceController {
 export class Router {
   private routes: RouteEntry[] = [];
   private groupStack: RouteGroupOptions[] = [];
+  private parent?: Router;
+
+  constructor(parent?: Router) {
+    this.parent = parent;
+  }
 
   public getRoutes(): RouteEntry[] {
-    return this.routes;
+    return [...(this.parent ? this.parent.getRoutes() : []), ...this.routes];
+  }
+
+  public clone(): Router {
+    const copy = new Router(this.parent);
+    copy.routes = [...this.routes];
+    return copy;
   }
 
   public addRoute(method: HttpMethod, path: string, handler: RouteHandler): RouteEntry {
@@ -123,6 +134,10 @@ export class Router {
         });
         return true;
       }
+    }
+
+    if (this.parent) {
+      return this.parent.dispatch(ctx, globalMiddlewares);
     }
 
     return false;

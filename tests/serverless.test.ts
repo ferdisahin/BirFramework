@@ -86,4 +86,53 @@ describe('BirFramework Serverless Adapter Tests', () => {
     const json = JSON.parse(responseBody);
     assert.strictEqual(json.page, 'installation');
   });
+
+  test('app.serverless() should mask stack trace and sensitive error details in production', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalDebug = process.env.APP_DEBUG;
+    process.env.NODE_ENV = 'production';
+    delete process.env.APP_DEBUG;
+
+    try {
+      const app = new Application();
+      app.router.get('/secret-crash', () => {
+        throw new Error('Database password leak: secret12345');
+      });
+
+      const handler = app.serverless();
+
+      const req: any = new EventEmitter();
+      req.method = 'GET';
+      req.url = '/secret-crash';
+      req.headers = { host: 'example.com', accept: 'application/json' };
+
+      let responseBody = '';
+      const res: any = {
+        writableEnded: false,
+        statusCode: 200,
+        setHeader() {},
+        writeHead(code: number) {
+          this.statusCode = code;
+        },
+        end(chunk?: any) {
+          this.writableEnded = true;
+          if (chunk) responseBody += chunk;
+        },
+      };
+
+      await handler(req, res);
+
+      assert.strictEqual(res.statusCode, 500);
+      assert.strictEqual(responseBody.includes('secret12345'), false);
+      assert.strictEqual(responseBody.includes('Database password leak'), false);
+      assert.strictEqual(responseBody.includes('stack'), false);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalDebug !== undefined) {
+        process.env.APP_DEBUG = originalDebug;
+      } else {
+        delete process.env.APP_DEBUG;
+      }
+    }
+  });
 });
