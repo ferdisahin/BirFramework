@@ -121,7 +121,7 @@ export class Container {
 
     if (binding.singleton) {
       if (binding.instance === undefined) {
-        binding.instance = await binding.factory(this);
+        binding.instance = Promise.resolve(binding.factory(this));
       }
       return (await binding.instance) as T;
     }

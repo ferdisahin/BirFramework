@@ -1,6 +1,14 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Middleware } from '../router/middleware.js';
 import type { Context } from '../http/context.js';
+
+function safeCompare(a: any, b: any): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 export function csrfToken(ctx: Context): string {
   if (!ctx.session) {
@@ -67,7 +75,7 @@ export function csrf(): Middleware {
 
     const providedToken = headerToken || bodyToken;
 
-    if (!providedToken || providedToken !== sessionToken) {
+    if (!providedToken || !safeCompare(providedToken, sessionToken)) {
       if (ctx.headers['accept']?.includes('application/json')) {
         return ctx.json({ error: 'CSRF token mismatch. Page Expired.' }, 419);
       }

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, relative, isAbsolute } from 'node:path';
 import { S3Disk, type S3DiskOptions } from './drivers/s3.js';
 
 export * from './drivers/s3.js';
@@ -21,12 +21,21 @@ export class LocalDisk implements StorageDisk {
   private publicUrlBase: string;
 
   constructor(options: { root?: string; publicUrlBase?: string } = {}) {
-    this.rootDir = options.root || resolve(process.cwd(), 'storage/app');
+    this.rootDir = resolve(options.root || resolve(process.cwd(), 'storage/app'));
     this.publicUrlBase = options.publicUrlBase || '/storage';
   }
 
   public path(filePath: string): string {
-    return join(this.rootDir, filePath);
+    if (typeof filePath !== 'string' || filePath.includes('\0')) {
+      throw new Error('[BirStorage] Invalid storage file path.');
+    }
+    const clean = filePath.replace(/^[/\\]+/, '');
+    const resolved = resolve(this.rootDir, clean);
+    const rel = relative(this.rootDir, resolved);
+    if (rel.startsWith('..') || isAbsolute(rel)) {
+      throw new Error(`[BirStorage] Path traversal attempt detected: "${filePath}".`);
+    }
+    return resolved;
   }
 
   public async put(filePath: string, content: string | Buffer): Promise<boolean> {

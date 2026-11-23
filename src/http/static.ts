@@ -1,5 +1,5 @@
 import { existsSync, createReadStream, statSync } from 'node:fs';
-import { resolve, join, extname } from 'node:path';
+import { resolve, relative, extname, sep } from 'node:path';
 import type { Middleware } from '../router/middleware.js';
 
 const MIME_TYPES: Record<string, string> = {
@@ -28,7 +28,7 @@ export interface StaticOptions {
 }
 
 export function serveStatic(options: StaticOptions = {}): Middleware {
-  const publicDir = options.publicDir || resolve(process.cwd(), 'public');
+  const publicDir = resolve(options.publicDir || resolve(process.cwd(), 'public'));
 
   return async (ctx, next) => {
     // Only serve GET and HEAD for static files
@@ -37,11 +37,26 @@ export function serveStatic(options: StaticOptions = {}): Middleware {
       return;
     }
 
-    const cleanPath = ctx.path.replace(/^\/+/, '');
-    const fullPath = join(publicDir, cleanPath);
+    let decodedPath: string;
+    try {
+      decodedPath = decodeURIComponent(ctx.path);
+    } catch {
+      await next();
+      return;
+    }
 
-    // Prevent directory traversal attacks
-    if (!fullPath.startsWith(publicDir)) {
+    // Reject null bytes and path traversal signatures
+    if (decodedPath.includes('\0')) {
+      await next();
+      return;
+    }
+
+    const cleanPath = decodedPath.replace(/^\/+/, '');
+    const fullPath = resolve(publicDir, cleanPath);
+
+    // Prevent directory traversal attacks using relative path inspection
+    const rel = relative(publicDir, fullPath);
+    if (rel.startsWith('..') || rel.startsWith(sep + '..') || fullPath === publicDir) {
       await next();
       return;
     }

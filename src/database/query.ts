@@ -1,6 +1,27 @@
 import { DatabaseConnection, dbConnection } from './connection.js';
 import { paginate as createPaginator, type LengthAwarePaginator, type PaginationOptions } from '../pagination/index.js';
 
+const ALLOWED_OPERATORS = new Set([
+  '=', '!=', '<>', '<', '<=', '>', '>=',
+  'LIKE', 'NOT LIKE', 'ILIKE', 'NOT ILIKE',
+  'REGEXP', 'NOT REGEXP'
+]);
+
+function sanitizeIdentifier(col: string): string {
+  if (typeof col !== 'string' || col.trim().length === 0) {
+    throw new Error('[BirDatabase] Identifier must be a non-empty string.');
+  }
+  const clean = col.trim();
+  if (clean === '*') return '*';
+  const parts = clean.split('.');
+  for (const part of parts) {
+    if (!/^[a-zA-Z0-9_]+$/.test(part)) {
+      throw new Error(`[BirDatabase] Unsafe SQL identifier detected: "${col}".`);
+    }
+  }
+  return parts.map((p) => `\`${p}\``).join('.');
+}
+
 type WhereClause = {
   column: string;
   operator: string;
@@ -46,22 +67,26 @@ export class QueryBuilder<T = any> {
       this.where('1', '=', '0');
       return this;
     }
+    const safeCol = sanitizeIdentifier(column);
     const placeholders = values.map(() => '?').join(', ');
-    return this.addWhereRaw('AND', `\`${column}\` IN (${placeholders})`, values);
+    return this.addWhereRaw('AND', `${safeCol} IN (${placeholders})`, values);
   }
 
   public whereNull(column: string): this {
-    return this.addWhereRaw('AND', `\`${column}\` IS NULL`, []);
+    const safeCol = sanitizeIdentifier(column);
+    return this.addWhereRaw('AND', `${safeCol} IS NULL`, []);
   }
 
   public whereNotNull(column: string): this {
-    return this.addWhereRaw('AND', `\`${column}\` IS NOT NULL`, []);
+    const safeCol = sanitizeIdentifier(column);
+    return this.addWhereRaw('AND', `${safeCol} IS NOT NULL`, []);
   }
 
   public orderBy(column: string, direction: 'asc' | 'desc' | 'ASC' | 'DESC' = 'ASC'): this {
+    const dir = String(direction).toUpperCase().trim() === 'DESC' ? 'DESC' : 'ASC';
     this.orderClauses.push({
-      column,
-      direction: direction.toUpperCase() as 'ASC' | 'DESC',
+      column: sanitizeIdentifier(column),
+      direction: dir,
     });
     return this;
   }
@@ -75,12 +100,12 @@ export class QueryBuilder<T = any> {
   }
 
   public limit(count: number): this {
-    this.limitCount = count;
+    this.limitCount = Math.max(0, parseInt(String(count), 10));
     return this;
   }
 
   public offset(count: number): this {
-    this.offsetCount = count;
+    this.offsetCount = Math.max(0, parseInt(String(count), 10));
     return this;
   }
 
@@ -201,7 +226,7 @@ export class QueryBuilder<T = any> {
     }
 
     if (this.orderClauses.length > 0) {
-      const orders = this.orderClauses.map((o) => `\`${o.column}\` ${o.direction}`).join(', ');
+      const orders = this.orderClauses.map((o) => `${o.column} ${o.direction}`).join(', ');
       sql += ` ORDER BY ${orders}`;
     }
 
@@ -225,9 +250,16 @@ export class QueryBuilder<T = any> {
       val = value;
     }
 
+    const upperOp = String(operator).toUpperCase().trim();
+    if (!ALLOWED_OPERATORS.has(upperOp)) {
+      throw new Error(`[BirDatabase] Unsupported or unsafe SQL operator: "${operator}".`);
+    }
+
+    sanitizeIdentifier(column);
+
     this.whereClauses.push({
       column,
-      operator,
+      operator: upperOp,
       value: val,
       boolean,
     });
@@ -262,7 +294,8 @@ export class QueryBuilder<T = any> {
           params.push(...w.value);
         }
       } else {
-        parts.push(`${prefix}\`${w.column}\` ${w.operator} ?`);
+        const safeCol = sanitizeIdentifier(w.column);
+        parts.push(`${prefix}${safeCol} ${w.operator} ?`);
         params.push(w.value);
       }
     }

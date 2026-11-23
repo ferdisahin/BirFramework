@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import { birScripts } from './turbo.js';
 import { parseMarkdown } from './markdown.js';
 import { VERSION } from '../version.js';
 import { __, Lang } from '../localization/translator.js';
+
+const DANGEROUS_EXPRESSIONS = /\b(process|require|import|global|globalThis|child_process|fs|module|eval|Function)\b/;
 
 export type MarkdownParser = (markdown: string) => string;
 
@@ -56,7 +58,15 @@ export class ViewEngine {
   }
 
   public loadTemplate(name: string): string {
+    if (typeof name !== 'string' || name.includes('\0') || name.includes('..')) {
+      throw new Error(`[BirView] Invalid view template name: "${name}"`);
+    }
+
     const cleanName = name.replace(/\.(bir|html|blade\.php|view)$/, '').replace(/\./g, '/');
+    if (cleanName.includes('..')) {
+      throw new Error(`[BirView] Path traversal detected in template name: "${name}"`);
+    }
+
     const searchDirs = [
       this.viewsDir,
       join(process.cwd(), 'views'),
@@ -66,6 +76,7 @@ export class ViewEngine {
     const uniqueDirs = [...new Set(searchDirs.filter(Boolean))];
 
     for (const dir of uniqueDirs) {
+      const resolvedDir = resolve(dir);
       const possiblePaths = [
         join(dir, `${cleanName}.bir`),
         join(dir, `${cleanName}.html`),
@@ -75,8 +86,10 @@ export class ViewEngine {
       ];
 
       for (const p of possiblePaths) {
-        if (existsSync(p)) {
-          return readFileSync(p, 'utf-8');
+        const resolvedPath = resolve(p);
+        const rel = relative(resolvedDir, resolvedPath);
+        if (!rel.startsWith('..') && existsSync(resolvedPath)) {
+          return readFileSync(resolvedPath, 'utf-8');
         }
       }
     }
@@ -231,6 +244,9 @@ export class ViewEngine {
 
         // Support function calls e.g. {!! bir_scripts() !!} or {!! __('raw.html') !!}
         if (cleanVar.includes('(') && cleanVar.includes(')')) {
+          if (DANGEROUS_EXPRESSIONS.test(cleanVar)) {
+            return '';
+          }
           try {
             const fn = new Function(...Object.keys(scope), `return (${cleanVar});`);
             const res = fn(...Object.values(scope));
@@ -267,6 +283,9 @@ export class ViewEngine {
 
         // Support function calls and expressions in {{ ... }} e.g. {{ __('welcome', { name: 'Zeynep' }) }}
         if (cleanVar.includes('(') && cleanVar.includes(')')) {
+          if (DANGEROUS_EXPRESSIONS.test(cleanVar)) {
+            return '';
+          }
           try {
             const fn = new Function(...Object.keys(scope), `return (${cleanVar});`);
             const res = fn(...Object.values(scope));
@@ -521,6 +540,9 @@ export class ViewEngine {
     let current: any = scope;
     for (const part of parts) {
       if (current === undefined || current === null) return undefined;
+      if (part === '__proto__' || part === 'constructor' || part === 'prototype') {
+        return undefined;
+      }
       current = current[part];
     }
     return current;
@@ -530,6 +552,10 @@ export class ViewEngine {
     const trimmed = condition.trim();
     if (/^[a-zA-Z0-9_.]+$/.test(trimmed)) {
       return Boolean(this.resolveVariable(trimmed, scope));
+    }
+
+    if (DANGEROUS_EXPRESSIONS.test(trimmed)) {
+      return false;
     }
 
     try {

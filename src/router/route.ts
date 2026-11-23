@@ -39,9 +39,16 @@ export class RouteEntry {
     const params: Record<string, string> = {};
     for (let i = 0; i < this.paramNames.length; i++) {
       const paramName = this.paramNames[i]!;
+      if (paramName === '__proto__' || paramName === 'constructor' || paramName === 'prototype') {
+        continue;
+      }
       const paramValue = match[i + 1];
       if (paramValue !== undefined) {
-        params[paramName] = decodeURIComponent(paramValue);
+        try {
+          params[paramName] = decodeURIComponent(paramValue);
+        } catch {
+          params[paramName] = paramValue;
+        }
       }
     }
 

@@ -576,4 +576,225 @@ describe('BirFramework Security Fixes Verification Tests', () => {
       await client.close();
     }
   });
+
+  // 13. Path Traversal Prevention in Static File Server & LocalDisk
+  test('LocalDisk throws on path traversal attempts', async () => {
+    const { LocalDisk } = await import('../src/storage/index.js');
+    const disk = new LocalDisk({ root: '/tmp/bir_test_storage' });
+
+    assert.throws(() => {
+      disk.path('../../../etc/passwd');
+    }, /Path traversal attempt detected/);
+
+    assert.throws(() => {
+      disk.path('..\\..\\windows\\system32');
+    }, /Path traversal attempt detected/);
+  });
+
+  test('Static file server blocks path traversal and null bytes', async () => {
+    const { serveStatic } = await import('../src/http/static.js');
+    const middleware = serveStatic();
+
+    let nextCalled = false;
+    const req: any = new EventEmitter();
+    req.method = 'GET';
+    req.url = '/../../../etc/passwd';
+    req.headers = { host: 'localhost' };
+    req.socket = { remoteAddress: '127.0.0.1' };
+
+    const res: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader() {},
+      writeHead() {},
+      end() {},
+    };
+
+    const ctx = new Context(req, res);
+    await middleware(ctx, async () => { nextCalled = true; });
+
+    assert.strictEqual(nextCalled, true, 'Traversal must pass through to next without serving file');
+  });
+
+  // 14. View Engine Path Traversal & RCE Prevention
+  test('ViewEngine blocks template path traversal and dangerous expressions', async () => {
+    const { ViewEngine } = await import('../src/view/engine.js');
+    const engine = new ViewEngine();
+
+    assert.throws(() => {
+      engine.loadTemplate('../../../etc/passwd');
+    }, /Invalid view template name|Path traversal detected/);
+
+    // RCE test in template expressions
+    const templateWithRCE = 'Hello {{ process.exit(1) }}';
+    const rendered = engine.compile(templateWithRCE, {});
+    // process identifier must be neutralized, output must not crash process
+    assert.strictEqual(rendered.trim(), 'Hello');
+
+    const templateWithRawRCE = 'Result: {!! require("child_process") !!}';
+    const renderedRaw = engine.compile(templateWithRawRCE, {});
+    assert.strictEqual(renderedRaw.trim(), 'Result:');
+  });
+
+  // 15. Reflected XSS Prevention in Built-in Error Pages
+  test('Built-in error pages escape HTML in paths and error messages', async () => {
+    const { ErrorHandler } = await import('../src/errors/handler.ts');
+
+    const req: any = new EventEmitter();
+    req.method = 'GET';
+    req.url = '/<script>alert("xss")</script>';
+    req.headers = { host: 'localhost', accept: 'text/html' };
+    req.socket = { remoteAddress: '127.0.0.1' };
+
+    let htmlBody = '';
+    const res: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader() {},
+      writeHead() {},
+      end(chunk?: any) {
+        this.writableEnded = true;
+        if (chunk) htmlBody = chunk;
+      },
+    };
+
+    const ctx = new Context(req, res);
+    ErrorHandler.handleNotFound(ctx);
+
+    assert.strictEqual(res.statusCode, 404);
+    assert.ok(!htmlBody.includes('<script>alert("xss")</script>'));
+    assert.ok(htmlBody.includes('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'));
+  });
+
+  // 16. Open Redirect Prevention in Validation Errors
+  test('Validation error handler prevents open redirects to external hosts', async () => {
+    const { ErrorHandler } = await import('../src/errors/handler.ts');
+    const { ValidationError } = await import('../src/validation/index.js');
+
+    const req: any = new EventEmitter();
+    req.method = 'POST';
+    req.url = '/submit';
+    req.headers = {
+      host: 'myapp.com',
+      accept: 'text/html',
+      referer: 'https://evil.com/phishing',
+    };
+    req.socket = { remoteAddress: '127.0.0.1' };
+
+    let redirectedUrl = '';
+    const res: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader(name: string, val: string) {
+        if (name.toLowerCase() === 'location') redirectedUrl = val;
+      },
+      writeHead() {},
+      end() { this.writableEnded = true; },
+    };
+
+    const ctx = new Context(req, res);
+    ctx.session = new Session();
+
+    const err = new ValidationError('Validation failed', { email: ['Invalid email'] });
+    await ErrorHandler.handleException(ctx, err);
+
+    assert.notStrictEqual(redirectedUrl, 'https://evil.com/phishing', 'Must not redirect to external evil.com');
+    assert.strictEqual(redirectedUrl, '/', 'Must fallback to safe relative path');
+  });
+
+  // 17. Prototype Pollution Prevention in Query, Multipart, and Cookies
+  test('Prototype keys (__proto__, constructor, prototype) are ignored in Context query and URL-encoded body', async () => {
+    const req: any = new EventEmitter();
+    req.method = 'POST';
+    req.url = '/test?__proto__=polluted&normal=safe';
+    req.headers = {
+      host: 'localhost',
+      'content-type': 'application/x-www-form-urlencoded',
+    };
+    req.socket = { remoteAddress: '127.0.0.1' };
+
+    const res: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader() {},
+      writeHead() {},
+      end() {},
+    };
+
+    const ctx = new Context(req, res);
+    assert.strictEqual(ctx.query['__proto__'], undefined);
+    assert.strictEqual(ctx.query['normal'], 'safe');
+    assert.strictEqual((Object.prototype as any).polluted, undefined);
+  });
+
+  // 18. SQL Injection & Operator Whitelisting in QueryBuilder
+  test('QueryBuilder rejects unsupported or dangerous SQL operators and unsafe identifiers', async () => {
+    const { QueryBuilder } = await import('../src/database/query.js');
+    const qb = new QueryBuilder('users');
+
+    assert.throws(() => {
+      qb.where('id', '= 1; DROP TABLE users; --', 'val');
+    }, /Unsupported or unsafe SQL operator/);
+
+    assert.throws(() => {
+      qb.where('id` = 1 OR `1` = `1', '=', '1');
+    }, /Unsafe SQL identifier detected/);
+
+    // OrderBy direction sanitization
+    qb.orderBy('name', 'DESC; DROP TABLE users;' as any);
+    const { sql } = qb.toSql();
+    assert.ok(sql.includes('ORDER BY `name` ASC'), 'Invalid direction must default to ASC');
+  });
+
+  // 19. CRLF Injection Prevention in Headers and Redirects
+  test('Context throws on CRLF injection in headers and redirects', () => {
+    const req: any = new EventEmitter();
+    req.method = 'GET';
+    req.url = '/';
+    req.headers = { host: 'localhost' };
+    req.socket = { remoteAddress: '127.0.0.1' };
+
+    const res: any = {
+      writableEnded: false,
+      statusCode: 200,
+      setHeader() {},
+      writeHead() {},
+      end() {},
+    };
+
+    const ctx = new Context(req, res);
+
+    assert.throws(() => {
+      ctx.header('X-Injected\r\nSet-Cookie: evil=1', 'value');
+    }, /CRLF injection prevented/);
+
+    assert.throws(() => {
+      ctx.header('X-Header', 'value\r\nInjected: evil');
+    }, /CRLF injection prevented/);
+
+    assert.throws(() => {
+      ctx.redirect('http://example.com\r\nSet-Cookie: evil=1');
+    }, /CRLF injection prevented/);
+  });
+
+  // 20. Default Security Headers
+  test('Application sets default security headers on HTTP responses', async () => {
+    const { Application } = await import('../src/core/application.js');
+    const { createTestClient } = await import('../src/testing/index.js');
+
+    const app = new Application();
+    app.router.get('/ping', (ctx) => ctx.text('pong'));
+
+    const client = createTestClient(app);
+    try {
+      const res = await client.get('/ping');
+      res.assertOk();
+
+      assert.strictEqual(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.strictEqual(res.headers.get('x-frame-options'), 'SAMEORIGIN');
+      assert.strictEqual(res.headers.get('x-xss-protection'), '0');
+    } finally {
+      await client.close();
+    }
+  });
 });

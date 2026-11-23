@@ -7,6 +7,19 @@ interface MemoryCacheItem {
 
 export class MemoryStore implements CacheDriver {
   private storage = new Map<string, MemoryCacheItem>();
+  private readonly maxItems: number = 50000;
+
+  public sweepExpired(): number {
+    const now = Date.now();
+    let count = 0;
+    for (const [key, item] of this.storage.entries()) {
+      if (item.expiresAt !== null && now > item.expiresAt) {
+        this.storage.delete(key);
+        count++;
+      }
+    }
+    return count;
+  }
 
   public async get<T = any>(key: string): Promise<T | null> {
     const item = this.storage.get(key);
@@ -21,6 +34,14 @@ export class MemoryStore implements CacheDriver {
   }
 
   public async put(key: string, value: any, ttlSeconds?: number): Promise<void> {
+    if (this.storage.size >= this.maxItems && !this.storage.has(key)) {
+      this.sweepExpired();
+      if (this.storage.size >= this.maxItems) {
+        const oldestKey = this.storage.keys().next().value;
+        if (oldestKey) this.storage.delete(oldestKey);
+      }
+    }
+
     const expiresAt = ttlSeconds && ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : null;
     this.storage.set(key, { value, expiresAt });
   }

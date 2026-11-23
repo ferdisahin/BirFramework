@@ -67,12 +67,13 @@ export function parseMultipart(bodyBuffer: Buffer, boundary: string): MultipartR
         }
       }
 
-      if (fieldName) {
+      if (fieldName && fieldName !== '__proto__' && fieldName !== 'constructor' && fieldName !== 'prototype') {
         if (filename) {
-          // It's a file
+          // It's a file - strip any directory traversal from original filename
+          const safeFilename = filename.replace(/^.*[/\\]/, '');
           const uploadedFile = new UploadedFile(
             fieldName,
-            filename,
+            safeFilename,
             contentType,
             bodyPart.length,
             Buffer.from(bodyPart)

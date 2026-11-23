@@ -5,6 +5,7 @@ import { Context } from '../http/context.js';
 import { Router, defaultRouter } from '../router/router.js';
 import { Container } from '../container/container.js';
 import { serveStatic } from '../http/static.js';
+import { securityHeaders } from '../http/middlewares.js';
 import { sessionMiddleware } from '../auth/session.js';
 import { ErrorHandler } from '../errors/handler.js';
 import { Broadcast } from '../broadcasting/index.js';
@@ -33,6 +34,9 @@ export class Application {
 
     // Default static file serving for public directory
     this.use(serveStatic());
+
+    // Default security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+    this.use(securityHeaders());
 
     // Default session middleware
     this.use(sessionMiddleware());

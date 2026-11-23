@@ -4,6 +4,15 @@ import { DebugScreen } from './debug-screen.js';
 import { StackParser } from './stack-parser.js';
 import { VERSION } from '../version.js';
 
+function escapeHtml(str: any): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export class ErrorHandler {
   /**
    * Handle 404 Not Found
@@ -61,7 +70,21 @@ export class ErrorHandler {
         ctx.session.flash('error', err.message);
         ctx.session.flash('errors', err.errors);
         const referer = (ctx.headers['referer'] as string) || '/';
-        ctx.redirect(referer);
+        let safeRedirect = '/';
+        try {
+          if (!referer.startsWith('http://') && !referer.startsWith('https://')) {
+            safeRedirect = referer.startsWith('/') ? referer : `/${referer}`;
+          } else {
+            const parsed = new URL(referer);
+            const hostHeader = ctx.headers['host'];
+            if (hostHeader && parsed.host === hostHeader) {
+              safeRedirect = parsed.pathname + parsed.search;
+            }
+          }
+        } catch {
+          safeRedirect = '/';
+        }
+        ctx.redirect(safeRedirect);
         return;
       }
 
@@ -95,7 +118,7 @@ export class ErrorHandler {
         ctx.html(
           `<div style="font-family:system-ui;text-align:center;padding:3rem;">
             <h1 style="color:#ef4444;">413 | Payload Too Large</h1>
-            <p>${err.message || 'Request entity exceeds maximum allowed size'}</p>
+            <p>${escapeHtml(err.message || 'Request entity exceeds maximum allowed size')}</p>
           </div>`,
           413
         );
@@ -159,8 +182,8 @@ export class ErrorHandler {
   }
 
   private static renderBuiltin404(ctx: Context): string {
-    const safeMethod = ctx.method;
-    const safePath = ctx.path;
+    const safeMethod = escapeHtml(ctx.method);
+    const safePath = escapeHtml(ctx.path);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -267,6 +290,7 @@ export class ErrorHandler {
   }
 
   private static renderBuiltin403(message: string): string {
+    const safeMsg = escapeHtml(message || 'This action is unauthorized.');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -338,7 +362,7 @@ export class ErrorHandler {
   <div class="container">
     <h1 class="code">403</h1>
     <div class="content">
-      <h2 class="title">${message || 'This action is unauthorized.'}</h2>
+      <h2 class="title">${safeMsg}</h2>
       <div class="links">
         <a href="/">Home</a>
         <a href="https://birframework.dev" target="_blank">Docs</a>

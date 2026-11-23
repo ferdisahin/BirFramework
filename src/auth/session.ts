@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Context } from '../http/context.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -147,9 +147,14 @@ export class CookieManager {
     const pairs = header.split(';');
 
     for (const pair of pairs) {
-      const [name, ...rest] = pair.trim().split('=');
-      if (name) {
-        cookies[name.trim()] = decodeURIComponent(rest.join('=').trim());
+      const [rawName, ...rest] = pair.trim().split('=');
+      const name = rawName?.trim();
+      if (name && name !== '__proto__' && name !== 'constructor' && name !== 'prototype') {
+        try {
+          cookies[name] = decodeURIComponent(rest.join('=').trim());
+        } catch {
+          cookies[name] = rest.join('=').trim();
+        }
       }
     }
 
@@ -174,7 +179,10 @@ export class CookieManager {
       .update(value)
       .digest('base64url');
 
-    if (signature === expectedSignature) {
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSignature);
+
+    if (sigBuf.length === expectedBuf.length && timingSafeEqual(sigBuf, expectedBuf)) {
       return value;
     }
 

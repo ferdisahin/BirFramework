@@ -74,6 +74,10 @@ export class WebSocketServer {
 
     socket.on('data', (chunk: Buffer) => {
       try {
+        if (client.buffer.length + chunk.length > 10 * 1024 * 1024) {
+          client.close();
+          return;
+        }
         client.buffer = Buffer.concat([client.buffer, chunk]);
         this.processClientBuffer(client);
       } catch {
@@ -162,6 +166,11 @@ export class WebSocketServer {
         }
         payloadLength = Number(client.buffer.readBigUInt64BE(offset));
         offset += 8;
+      }
+
+      if (payloadLength > 10 * 1024 * 1024) {
+        client.close();
+        return;
       }
 
       let maskingKey: Buffer | null = null;

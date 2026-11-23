@@ -15,9 +15,33 @@ interface ClientRecord {
 
 export class RateLimiter {
   private records = new Map<string, ClientRecord>();
+  private readonly maxRecords: number = 20000;
+
+  public sweepExpired(): number {
+    const now = Date.now();
+    let count = 0;
+    for (const [key, record] of this.records.entries()) {
+      if (now > record.resetAt) {
+        this.records.delete(key);
+        count++;
+      }
+    }
+    return count;
+  }
 
   public check(key: string, max: number = 60, windowMs: number = 60000): { allowed: boolean; remaining: number; resetInSec: number } {
     const now = Date.now();
+
+    // Auto-prune expired records when capacity is reached to prevent memory leaks
+    if (this.records.size >= this.maxRecords) {
+      this.sweepExpired();
+      if (this.records.size >= this.maxRecords) {
+        // Evict oldest record
+        const oldestKey = this.records.keys().next().value;
+        if (oldestKey) this.records.delete(oldestKey);
+      }
+    }
+
     const record = this.records.get(key);
 
     if (!record || now > record.resetAt) {

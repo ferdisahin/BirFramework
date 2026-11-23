@@ -28,8 +28,8 @@ export class PayloadTooLargeError extends Error {
 const DEFAULT_MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || '', 10) || 10 * 1024 * 1024; // 10 MB default
 
 export class Context {
-  public params: Record<string, string> = {};
-  public query: Record<string, string | string[]> = {};
+  public params: Record<string, string> = Object.create(null);
+  public query: Record<string, string | string[]> = Object.create(null);
   public session?: Session;
   private _bodyParsed: boolean = false;
   private _cachedBody: any = null;
@@ -76,6 +76,9 @@ export class Context {
   }
 
   public header(name: string, value: string | string[]): this {
+    if (/[\r\n]/.test(name) || (typeof value === 'string' && /[\r\n]/.test(value))) {
+      throw new Error('[BirHttp] Header contains illegal newline characters (CRLF injection prevented).');
+    }
     this._headers[name.toLowerCase()] = value;
     this.res.setHeader(name, value);
     return this;
@@ -120,6 +123,7 @@ export class Context {
       const searchParams = new URLSearchParams(rawBuffer.toString('utf-8'));
       const parsed: Record<string, any> = {};
       for (const [key, value] of searchParams.entries()) {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
         parsed[key] = value;
       }
       this._cachedBody = parsed;
@@ -196,6 +200,9 @@ export class Context {
    * Redirect to a URL
    */
   public redirect(url: string, statusCode: number = 302): void {
+    if (/[\r\n]/.test(url)) {
+      throw new Error('[BirHttp] Redirect URL contains illegal newline characters (CRLF injection prevented).');
+    }
     this.status(statusCode);
     this.header('Location', url);
     this.res.end();
@@ -240,6 +247,7 @@ export class Context {
     const queryString = rawUrl.substring(qIndex + 1);
     const searchParams = new URLSearchParams(queryString);
     for (const [key, value] of searchParams.entries()) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
       if (this.query[key] !== undefined) {
         const existing = this.query[key];
         if (Array.isArray(existing)) {

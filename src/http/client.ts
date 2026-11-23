@@ -299,9 +299,10 @@ export class PendingRequest {
 
     while (attempts < maxAttempts) {
       attempts++;
+      let timeoutTimer: NodeJS.Timeout | undefined;
       try {
         const controller = new AbortController();
-        const timeoutTimer = setTimeout(() => controller.abort(), this._timeoutMs);
+        timeoutTimer = setTimeout(() => controller.abort(), this._timeoutMs);
 
         const res = await fetch(targetUrl, {
           method: method.toUpperCase(),
@@ -309,8 +310,6 @@ export class PendingRequest {
           body: bodyPayload,
           signal: controller.signal,
         });
-
-        clearTimeout(timeoutTimer);
 
         const resHeaders: Record<string, string> = {};
         res.headers.forEach((value, key) => {
@@ -342,6 +341,8 @@ export class PendingRequest {
           }
         }
         throw err;
+      } finally {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
       }
     }
 

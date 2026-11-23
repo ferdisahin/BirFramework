@@ -5,6 +5,9 @@ export class Hash {
    * Hashes a plain password using memory-hard scrypt with a cryptographic salt.
    */
   public static make(password: string): string {
+    if (typeof password !== 'string') {
+      throw new TypeError('[BirAuth] Password must be a string.');
+    }
     const salt = randomBytes(16).toString('hex');
     const derivedKey = scryptSync(password, salt, 64);
     return `scrypt:${salt}:${derivedKey.toString('hex')}`;
@@ -14,7 +17,11 @@ export class Hash {
    * Constant-time verification to prevent timing attacks.
    */
   public static check(password: string, hashedValue: string): boolean {
-    if (!hashedValue || !hashedValue.startsWith('scrypt:')) {
+    if (typeof password !== 'string' || typeof hashedValue !== 'string') {
+      return false;
+    }
+
+    if (!hashedValue.startsWith('scrypt:')) {
       return false;
     }
 
