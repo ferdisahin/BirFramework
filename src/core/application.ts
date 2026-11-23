@@ -33,7 +33,11 @@ export class Application {
     return this;
   }
 
-  public listen(port: number = 3000, host: string = '0.0.0.0', callback?: () => void): Server {
+  public port: number = 3000;
+
+  public listen(port: number = 3000, host: string = '0.0.0.0', callback?: (port: number) => void): Server {
+    let currentPort = port;
+
     this.server = createServer(async (req, res) => {
       const ctx = new Context(req, res);
 
@@ -58,9 +62,25 @@ export class Application {
       }
     });
 
+    this.server.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        const nextPort = currentPort + 1;
+        console.log(`\x1b[33m➜ Port ${currentPort} is in use, trying ${nextPort} instead...\x1b[0m`);
+        currentPort = nextPort;
+        this.port = currentPort;
+        this.server!.listen(currentPort, host);
+      } else {
+        throw err;
+      }
+    });
+
     this.server.listen(port, host, () => {
+      this.port = currentPort;
+      if (currentPort !== port) {
+        console.log(`\x1b[32m✔ Automatically switched to available port: http://localhost:${currentPort}\x1b[0m`);
+      }
       if (callback) {
-        callback();
+        callback(currentPort);
       }
     });
 

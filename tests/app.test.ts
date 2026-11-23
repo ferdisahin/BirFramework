@@ -1,6 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import type { Server } from 'node:http';
+import { Application } from '../src/core/application.js';
 import { app } from '../example/app.js';
 import { defaultViewEngine } from '../src/view/engine.js';
 import { paginate } from '../src/pagination/index.js';
@@ -182,5 +183,30 @@ describe('BirFramework Pagination Tests', () => {
     assert.ok(linksHtml.includes('Previous'));
     assert.ok(linksHtml.includes('Next'));
     assert.ok(linksHtml.includes('page=2'));
+  });
+});
+
+describe('BirFramework Port Auto-Increment Tests', () => {
+  test('should automatically increment port when EADDRINUSE occurs', async () => {
+    const appA = new Application();
+    const appB = new Application();
+    const testPort = 4567;
+
+    const serverA = await new Promise<any>((resolve) => {
+      const s = appA.listen(testPort, '127.0.0.1', () => resolve(s));
+    });
+
+    let assignedPort = 0;
+    const serverB = await new Promise<any>((resolve) => {
+      const s = appB.listen(testPort, '127.0.0.1', (actualPort) => {
+        assignedPort = actualPort;
+        resolve(s);
+      });
+    });
+
+    assert.strictEqual(assignedPort, testPort + 1);
+
+    await new Promise<void>((r) => serverA.close(() => r()));
+    await new Promise<void>((r) => serverB.close(() => r()));
   });
 });
