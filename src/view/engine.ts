@@ -46,19 +46,38 @@ export class ViewEngine {
     return this.compile(rawTemplate, viewScope);
   }
 
+  public setViewsDir(dir: string): this {
+    this.viewsDir = dir;
+    return this;
+  }
+
+  public getViewsDir(): string {
+    return this.viewsDir;
+  }
+
   public loadTemplate(name: string): string {
     const cleanName = name.replace(/\.(bir|html|blade\.php|view)$/, '').replace(/\./g, '/');
-    const possiblePaths = [
-      join(this.viewsDir, `${cleanName}.bir`),
-      join(this.viewsDir, `${cleanName}.html`),
-      join(this.viewsDir, 'components', `${cleanName}.bir`),
-      join(this.viewsDir, 'components', `${cleanName}.html`),
-      join(this.viewsDir, `${cleanName}.view`),
+    const searchDirs = [
+      this.viewsDir,
+      join(process.cwd(), 'views'),
+      join(process.cwd(), '..', 'views'),
+      '/var/task/views',
     ];
+    const uniqueDirs = [...new Set(searchDirs.filter(Boolean))];
 
-    for (const p of possiblePaths) {
-      if (existsSync(p)) {
-        return readFileSync(p, 'utf-8');
+    for (const dir of uniqueDirs) {
+      const possiblePaths = [
+        join(dir, `${cleanName}.bir`),
+        join(dir, `${cleanName}.html`),
+        join(dir, 'components', `${cleanName}.bir`),
+        join(dir, 'components', `${cleanName}.html`),
+        join(dir, `${cleanName}.view`),
+      ];
+
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          return readFileSync(p, 'utf-8');
+        }
       }
     }
 
