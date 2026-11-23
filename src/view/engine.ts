@@ -14,6 +14,9 @@ export class ViewEngine {
   private viewsDir: string;
   private templateCache = new Map<string, string>();
   private static customMarkdownParser?: MarkdownParser;
+  private rawBlocks = new Map<string, string>();
+  private rawBlockCounter = 0;
+  private compileDepth = 0;
 
   constructor(options: ViewEngineOptions = {}) {
     this.viewsDir = options.viewsDir || resolve(process.cwd(), 'views');
@@ -57,75 +60,95 @@ export class ViewEngine {
    * Modern Blade-style Component & Directive Compiler
    */
   public compile(template: string, data: Record<string, any> = {}): string {
-    let output = template;
+    this.compileDepth++;
+    try {
+      let output = template;
 
-    // 1. Process Modern Blade Component Tags: <x-component.name ...>...</x-component.name>
-    output = this.compileComponents(output, data);
+      // 1. Process Modern Blade Component Tags: <x-component.name ...>...</x-component.name>
+      output = this.compileComponents(output, data);
 
-    // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
-    output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
-    output = output.replace(/@birScripts/g, birScripts());
+      // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
+      output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
+      output = output.replace(/@birScripts/g, birScripts());
 
-    // 1.2 Markdown Block: @markdown ... @endmarkdown
-    output = output.replace(/@markdown([\s\S]*?)@endmarkdown/g, (_, md) => {
-      return this.parseMarkdown(md.trim());
-    });
+      // 1.2 Markdown Block: @markdown ... @endmarkdown
+      output = output.replace(/@markdown([\s\S]*?)@endmarkdown/g, (_, md) => {
+        const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+        const rendered = this.parseMarkdown(md.trim());
+        this.rawBlocks.set(token, rendered);
+        return token;
+      });
 
-    // 1.3 Markdown Inline/Variable: @markdown(expr)
-    output = output.replace(/@markdown\s*\((.+?)\)/g, (_, expr) => {
-      const cleanVar = expr.trim().replace(/^\$/, '');
-      const val = this.resolveVariable(cleanVar, data);
-      if (typeof val === 'string') {
-        return this.parseMarkdown(val);
+      // 1.3 Markdown Inline/Variable: @markdown(expr)
+      output = output.replace(/@markdown\s*\((.+?)\)/g, (_, expr) => {
+        const cleanVar = expr.trim().replace(/^\$/, '');
+        const val = this.resolveVariable(cleanVar, data);
+        if (typeof val === 'string') {
+          const token = `%%BIR_RAW_BLOCK_${++this.rawBlockCounter}%%`;
+          const rendered = this.parseMarkdown(val);
+          this.rawBlocks.set(token, rendered);
+          return token;
+        }
+        return '';
+      });
+
+      // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
+      output = this.compileLegacyLayouts(output, data);
+
+      // 3. Loops: @foreach(item in list) or @for(item of list) ... @endforeach / @endfor
+      const loopRegex = /@(foreach|for)\s*\(\s*(?:const\s+)?([a-zA-Z0-9_]+)\s+(?:in|of)\s+([a-zA-Z0-9_.]+)\s*\)([\s\S]*?)@(endforeach|endfor)/g;
+      output = output.replace(loopRegex, (_, __, itemVar, listVar, innerContent) => {
+        const list = this.resolveVariable(listVar, data);
+        if (!Array.isArray(list)) return '';
+
+        return list
+          .map((item, index) => {
+            const itemScope = {
+              ...data,
+              [itemVar]: item,
+              $index: index,
+              $first: index === 0,
+              $last: index === list.length - 1,
+            };
+            return this.compile(innerContent, itemScope);
+          })
+          .join('');
+      });
+
+      // 4. Conditionals: @if(condition) ... @else ... @endif
+      const ifRegex = /@if\s*\((.+?)\)([\s\S]*?)(?:@else([\s\S]*?))?@endif/g;
+      output = output.replace(ifRegex, (_, condition, trueContent, falseContent) => {
+        const isTrue = this.evaluateCondition(condition, data);
+        return isTrue ? this.compile(trueContent, data) : falseContent ? this.compile(falseContent, data) : '';
+      });
+
+      // 5. Unescaped HTML: {!! var !!} or {!! slot !!}
+      output = output.replace(/\{!!\s*([a-zA-Z0-9_$.]+)\s*!!\}/g, (_, varName) => {
+        const cleanVar = varName.replace(/^\$/, '');
+        const val = this.resolveVariable(cleanVar, data);
+        return val !== undefined && val !== null ? String(val) : '';
+      });
+
+      // 6. Escaped variables: {{ var }} or {{ $slot }}
+      output = output.replace(/\{\{\s*([a-zA-Z0-9_$.]+)\s*\}\}/g, (_, varName) => {
+        const cleanVar = varName.replace(/^\$/, '');
+        const val = this.resolveVariable(cleanVar, data);
+        return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
+      });
+
+      // 7. Top-level restoration of protected Raw/Markdown blocks
+      if (this.compileDepth === 1 && this.rawBlocks.size > 0) {
+        for (const [token, content] of this.rawBlocks) {
+          output = output.replaceAll(token, content);
+        }
+        this.rawBlocks.clear();
+        this.rawBlockCounter = 0;
       }
-      return '';
-    });
 
-    // 2. Legacy Layout support: @extends('layouts/...') & @section('...')
-    output = this.compileLegacyLayouts(output, data);
-
-    // 3. Loops: @foreach(item in list) or @for(item of list) ... @endforeach / @endfor
-    const loopRegex = /@(foreach|for)\s*\(\s*(?:const\s+)?([a-zA-Z0-9_]+)\s+(?:in|of)\s+([a-zA-Z0-9_.]+)\s*\)([\s\S]*?)@(endforeach|endfor)/g;
-    output = output.replace(loopRegex, (_, __, itemVar, listVar, innerContent) => {
-      const list = this.resolveVariable(listVar, data);
-      if (!Array.isArray(list)) return '';
-
-      return list
-        .map((item, index) => {
-          const itemScope = {
-            ...data,
-            [itemVar]: item,
-            $index: index,
-            $first: index === 0,
-            $last: index === list.length - 1,
-          };
-          return this.compile(innerContent, itemScope);
-        })
-        .join('');
-    });
-
-    // 4. Conditionals: @if(condition) ... @else ... @endif
-    const ifRegex = /@if\s*\((.+?)\)([\s\S]*?)(?:@else([\s\S]*?))?@endif/g;
-    output = output.replace(ifRegex, (_, condition, trueContent, falseContent) => {
-      const isTrue = this.evaluateCondition(condition, data);
-      return isTrue ? this.compile(trueContent, data) : falseContent ? this.compile(falseContent, data) : '';
-    });
-
-    // 5. Unescaped HTML: {!! var !!} or {!! slot !!}
-    output = output.replace(/\{!!\s*([a-zA-Z0-9_$.]+)\s*!!\}/g, (_, varName) => {
-      const cleanVar = varName.replace(/^\$/, '');
-      const val = this.resolveVariable(cleanVar, data);
-      return val !== undefined && val !== null ? String(val) : '';
-    });
-
-    // 6. Escaped variables: {{ var }} or {{ $slot }}
-    output = output.replace(/\{\{\s*([a-zA-Z0-9_$.]+)\s*\}\}/g, (_, varName) => {
-      const cleanVar = varName.replace(/^\$/, '');
-      const val = this.resolveVariable(cleanVar, data);
-      return val !== undefined && val !== null ? this.escapeHtml(String(val)) : '';
-    });
-
-    return output;
+      return output;
+    } finally {
+      this.compileDepth--;
+    }
   }
 
   /**

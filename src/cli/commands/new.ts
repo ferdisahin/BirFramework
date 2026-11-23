@@ -92,7 +92,7 @@ export async function createNewProject(
       start: isTS ? 'npx tsx app.ts' : 'node app.js',
     },
     dependencies: {
-      birframework: '^0.1.3',
+      birframework: '^0.1.4',
     },
     devDependencies: isTS
       ? {
@@ -157,7 +157,7 @@ export class HomeController {
   public async index(ctx: Context) {
     return ctx.render('welcome', {
       title: 'BirFramework',
-      version: '0.1.3',
+      version: '0.1.4',
       nodeVersion: process.version,
     });
   }
@@ -167,7 +167,7 @@ export class HomeController {
   async index(ctx) {
     return ctx.render('welcome', {
       title: 'BirFramework',
-      version: '0.1.3',
+      version: '0.1.4',
       nodeVersion: process.version,
     });
   }

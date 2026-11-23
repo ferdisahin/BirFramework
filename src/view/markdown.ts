@@ -9,9 +9,9 @@ export function parseMarkdown(markdown: string): string {
   // 1. Normalize line endings
   html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // 2. Fenced Code Blocks: ```lang ... ```
+  // 2. Fenced Code Blocks: ```lang ... ``` or ````lang ... ````
   const codeBlocks: string[] = [];
-  html = html.replace(/^[ \t]*```([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)\r?\n?[ \t]*```/gm, (_, lang, code) => {
+  html = html.replace(/^[ \t]*(`{3,}|~{3,})([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)\r?\n?[ \t]*\1/gm, (_, fence, lang, code) => {
     const escaped = code
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
