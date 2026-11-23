@@ -96,6 +96,8 @@ export async function createNewProject(
   writeFileSync(join(projectDir, 'storage/logs/.gitkeep'), '', 'utf-8');
   if (isTailwind) {
     mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
+    mkdirSync(join(projectDir, 'resources/js'), { recursive: true });
+    writeFileSync(join(projectDir, 'resources/js/app.js'), "import * as Turbo from '@hotwired/turbo';\n", 'utf-8');
   }
 
   // 1. package.json
@@ -133,6 +135,7 @@ export async function createNewProject(
     scripts: devScripts,
     dependencies: {
       birframework: `^${VERSION}`,
+      '@hotwired/turbo': '^8.0.12',
     },
     devDependencies,
   };
