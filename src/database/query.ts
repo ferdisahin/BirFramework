@@ -1,4 +1,5 @@
 import { DatabaseConnection, dbConnection } from './connection.js';
+import { Relation } from './relations.js';
 import { paginate as createPaginator, type LengthAwarePaginator, type PaginationOptions } from '../pagination/index.js';
 
 const ALLOWED_OPERATORS = new Set([
@@ -38,6 +39,7 @@ export class QueryBuilder<T = any> {
   private offsetCount?: number;
   private connection: DatabaseConnection;
   private modelClass?: new (attributes: any, exists: boolean) => T;
+  private eagerRelations: string[] = [];
 
   constructor(
     tableName: string,
@@ -47,6 +49,17 @@ export class QueryBuilder<T = any> {
     this.tableName = tableName;
     this.connection = connection;
     this.modelClass = modelClass;
+  }
+
+  public with(...relations: (string | string[])[]): this {
+    for (const r of relations) {
+      if (Array.isArray(r)) {
+        this.eagerRelations.push(...r);
+      } else if (typeof r === 'string') {
+        this.eagerRelations.push(r);
+      }
+    }
+    return this;
   }
 
   public select(...columns: string[]): this {
@@ -113,7 +126,11 @@ export class QueryBuilder<T = any> {
     const { sql, params } = this.toSql();
     const rows = await this.connection.query<any>(sql, params);
     if (this.modelClass) {
-      return rows.map((r) => new this.modelClass!(r, true));
+      const models = rows.map((r) => new this.modelClass!(r, true));
+      if (this.eagerRelations.length > 0 && models.length > 0) {
+        await this.eagerLoadRelations(models);
+      }
+      return models;
     }
     return rows as T[];
   }
@@ -126,9 +143,94 @@ export class QueryBuilder<T = any> {
     const row = await this.connection.queryOne<any>(sql, params);
     if (!row) return null;
     if (this.modelClass) {
-      return new this.modelClass(row, true);
+      const model = new this.modelClass(row, true);
+      if (this.eagerRelations.length > 0) {
+        await this.eagerLoadRelations([model]);
+      }
+      return model;
     }
     return row as T;
+  }
+
+  private async eagerLoadRelations(models: any[]): Promise<void> {
+    if (models.length === 0 || this.eagerRelations.length === 0) return;
+
+    const sample = models[0];
+
+    for (const relationName of this.eagerRelations) {
+      if (typeof sample[relationName] !== 'function') {
+        throw new Error(`[BirDatabase] Relation "${relationName}" is not defined on model ${sample.constructor.name || 'Model'}.`);
+      }
+
+      const relationInstance = sample[relationName]();
+      if (!relationInstance || !(relationInstance instanceof Relation)) {
+        throw new Error(`[BirDatabase] Method "${relationName}" on model ${sample.constructor.name || 'Model'} did not return a valid Relation.`);
+      }
+
+      const { type, relatedModel, foreignKey, localKey } = relationInstance;
+
+      if (type === 'hasMany') {
+        const parentIds = [...new Set(models.map((m) => m.attributes[localKey]).filter((v) => v !== undefined && v !== null))];
+        let relatedRecords: any[] = [];
+        if (parentIds.length > 0) {
+          relatedRecords = await (relatedModel as any).query().whereIn(foreignKey, parentIds).get();
+        }
+
+        const grouped = new Map<any, any[]>();
+        for (const record of relatedRecords) {
+          const fk = record.attributes[foreignKey];
+          if (!grouped.has(fk)) grouped.set(fk, []);
+          grouped.get(fk)!.push(record);
+        }
+
+        for (const model of models) {
+          const lk = model.attributes[localKey];
+          const matches = grouped.get(lk) || [];
+          model.relations[relationName] = matches;
+          model.attributes[relationName] = matches;
+        }
+      } else if (type === 'hasOne') {
+        const parentIds = [...new Set(models.map((m) => m.attributes[localKey]).filter((v) => v !== undefined && v !== null))];
+        let relatedRecords: any[] = [];
+        if (parentIds.length > 0) {
+          relatedRecords = await (relatedModel as any).query().whereIn(foreignKey, parentIds).get();
+        }
+
+        const map = new Map<any, any>();
+        for (const record of relatedRecords) {
+          const fk = record.attributes[foreignKey];
+          if (!map.has(fk)) {
+            map.set(fk, record);
+          }
+        }
+
+        for (const model of models) {
+          const lk = model.attributes[localKey];
+          const match = map.get(lk) || null;
+          model.relations[relationName] = match;
+          model.attributes[relationName] = match;
+        }
+      } else if (type === 'belongsTo') {
+        const foreignIds = [...new Set(models.map((m) => m.attributes[foreignKey]).filter((v) => v !== undefined && v !== null))];
+        let relatedRecords: any[] = [];
+        if (foreignIds.length > 0) {
+          relatedRecords = await (relatedModel as any).query().whereIn(localKey, foreignIds).get();
+        }
+
+        const map = new Map<any, any>();
+        for (const record of relatedRecords) {
+          const pk = record.attributes[localKey];
+          map.set(pk, record);
+        }
+
+        for (const model of models) {
+          const fk = model.attributes[foreignKey];
+          const match = map.get(fk) || null;
+          model.relations[relationName] = match;
+          model.attributes[relationName] = match;
+        }
+      }
+    }
   }
 
   public async find(id: any): Promise<T | null> {

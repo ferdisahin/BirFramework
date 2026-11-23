@@ -1,5 +1,6 @@
 import { QueryBuilder } from './query.js';
 import { dbConnection } from './connection.js';
+import { HasMany, HasOne, BelongsTo } from './relations.js';
 import type { LengthAwarePaginator, PaginationOptions } from '../pagination/index.js';
 
 export type ModelAttributes<T> = {
@@ -19,6 +20,7 @@ export class Model<T = any> {
   private static _hooksMap = new Map<string, Array<(m: any) => Promise<void> | void>>();
 
   public attributes: Record<string, any> = {};
+  public relations: Record<string, any> = {};
   public exists: boolean = false;
 
   public static filterFillable(attributes: Record<string, any>): Record<string, any> {
@@ -91,12 +93,25 @@ export class Model<T = any> {
 
   constructor(attributes: Record<string, any> = {}, exists: boolean = false) {
     this.attributes = { ...attributes };
+    this.relations = {};
     this.exists = exists;
 
-    // Return a Proxy so properties like user.name or user.email access attributes directly
+    // Return a Proxy so properties like user.name, user.email, and eager-loaded relations access them directly
     return new Proxy(this, {
+      has(target, prop) {
+        if (typeof prop === 'string') {
+          return prop in target.relations || prop in target || prop in target.attributes;
+        }
+        return Reflect.has(target, prop);
+      },
       get(target, prop, receiver) {
         if (typeof prop === 'string') {
+          if (prop === 'constructor') {
+            return target.constructor;
+          }
+          if (prop in target.relations) {
+            return target.relations[prop];
+          }
           if (prop in target) {
             return (target as any)[prop];
           }
@@ -108,6 +123,13 @@ export class Model<T = any> {
       },
       set(target, prop, value, receiver) {
         if (typeof prop === 'string') {
+          if (prop === '__proto__' || prop === 'constructor' || prop === 'prototype') {
+            return false;
+          }
+          if (prop in target.relations) {
+            target.relations[prop] = value;
+            return true;
+          }
           if (prop in target) {
             (target as any)[prop] = value;
             return true;
@@ -146,6 +168,13 @@ export class Model<T = any> {
 
   public static onlyTrashed<M extends typeof Model>(this: M): QueryBuilder<InstanceType<M>> {
     return this.rawQuery().whereNotNull('deleted_at');
+  }
+
+  public static with<M extends typeof Model>(
+    this: M,
+    ...relations: (string | string[])[]
+  ): QueryBuilder<InstanceType<M>> {
+    return this.query().with(...relations);
   }
 
   public static where<M extends typeof Model>(
@@ -339,29 +368,51 @@ export class Model<T = any> {
     relatedModel: M,
     foreignKey?: string,
     localKey?: string
-  ): QueryBuilder<InstanceType<M>> {
+  ): HasMany<InstanceType<M>> {
     const fKey = foreignKey || `${this.constructor.name.toLowerCase()}_id`;
-    const lKey = localKey || (this.constructor as typeof Model).primaryKey;
-    const val = this.attributes[lKey];
-    return relatedModel.where(fKey, '=', val);
+    const lKey = localKey || (this.constructor as typeof Model).primaryKey || 'id';
+    return new HasMany(this, relatedModel as any, fKey, lKey);
+  }
+
+  /**
+   * Define a one-to-one relationship
+   * e.g. user.hasOne(Profile)
+   */
+  public hasOne<M extends typeof Model>(
+    relatedModel: M,
+    foreignKey?: string,
+    localKey?: string
+  ): HasOne<InstanceType<M>> {
+    const fKey = foreignKey || `${this.constructor.name.toLowerCase()}_id`;
+    const lKey = localKey || (this.constructor as typeof Model).primaryKey || 'id';
+    return new HasOne(this, relatedModel as any, fKey, lKey);
   }
 
   /**
    * Define an inverse relationship
    * e.g. post.belongsTo(User)
    */
-  public async belongsTo<M extends typeof Model>(
+  public belongsTo<M extends typeof Model>(
     relatedModel: M,
     foreignKey?: string,
     ownerKey?: string
-  ): Promise<InstanceType<M> | null> {
+  ): BelongsTo<InstanceType<M>> {
     const fKey = foreignKey || `${relatedModel.name.toLowerCase()}_id`;
-    const val = this.attributes[fKey];
-    if (val === undefined || val === null) return null;
-    return relatedModel.find(val);
+    const oKey = ownerKey || (relatedModel as any).primaryKey || 'id';
+    return new BelongsTo(this, relatedModel as any, fKey, oKey);
   }
 
   public toJSON(): Record<string, any> {
-    return { ...this.attributes };
+    const json: Record<string, any> = { ...this.attributes };
+    for (const [rel, val] of Object.entries(this.relations)) {
+      if (Array.isArray(val)) {
+        json[rel] = val.map((v) => (typeof v?.toJSON === 'function' ? v.toJSON() : v));
+      } else if (val && typeof val.toJSON === 'function') {
+        json[rel] = val.toJSON();
+      } else {
+        json[rel] = val;
+      }
+    }
+    return json;
   }
 }
