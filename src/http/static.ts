@@ -54,7 +54,8 @@ export function serveStatic(options: StaticOptions = {}): Middleware {
       ctx.header('Cache-Control', `public, max-age=${options.maxAge || 3600}`);
 
       if (ctx.method === 'HEAD') {
-        ctx.status(200).text('');
+        ctx.res.statusCode = 200;
+        ctx.res.end();
         return;
       }
 
