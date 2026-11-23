@@ -31,8 +31,8 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.match(layoutHtml, /bir_scripts/);
 
     const welcomeHtml = readFileSync(resolve(testTailwindApp, 'views/welcome.html'), 'utf-8');
-    assert.match(welcomeHtml, /Instant Turbo SPA/);
-    assert.match(welcomeHtml, /bg-gradient-to-r/);
+    assert.match(welcomeHtml, /BirFramework/);
+    assert.match(welcomeHtml, /routes\/web\.ts/);
   });
 
   test('should scaffold JavaScript project with Pure CSS when requested', async () => {
@@ -45,15 +45,15 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.strictEqual(existsSync(resolve(testCssApp, 'public/css/app.css')), true);
 
     const cssContent = readFileSync(resolve(testCssApp, 'public/css/app.css'), 'utf-8');
-    assert.match(cssContent, /--bg-color/);
-    assert.match(cssContent, /\.feature-card/);
+    assert.match(cssContent, /#000000/);
+    assert.match(cssContent, /\.card/);
 
     const layoutHtml = readFileSync(resolve(testCssApp, 'views/layouts/app.html'), 'utf-8');
     assert.doesNotMatch(layoutHtml, /cdn\.tailwindcss\.com/);
     assert.match(layoutHtml, /href="\/css\/app\.css"/);
 
     const welcomeHtml = readFileSync(resolve(testCssApp, 'views/welcome.html'), 'utf-8');
-    assert.match(welcomeHtml, /Instant Turbo SPA/);
-    assert.match(welcomeHtml, /Multi-Driver ORM/);
+    assert.match(welcomeHtml, /BirFramework/);
+    assert.match(welcomeHtml, /routes\/web\.js/);
   });
 });
