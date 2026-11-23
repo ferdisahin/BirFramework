@@ -5,6 +5,7 @@ import { Context } from '../http/context.js';
 import { Router, defaultRouter } from '../router/router.js';
 import { Container, app as defaultContainer } from '../container/container.js';
 import { serveStatic } from '../http/static.js';
+import { sessionMiddleware } from '../auth/session.js';
 import '../core/env.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -30,6 +31,9 @@ export class Application {
 
     // Default static file serving for public directory
     this.use(serveStatic());
+
+    // Default session middleware
+    this.use(sessionMiddleware());
 
     // Register live reload in non-production environments
     if (process.env.NODE_ENV !== 'production') {

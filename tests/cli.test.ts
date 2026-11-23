@@ -65,4 +65,36 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.match(welcomeHtml, /BirFramework/);
     assert.match(welcomeHtml, /routes\/web\.js/);
   });
+
+  test('should scaffold complete authentication system via make:auth / scaffoldAuth', async () => {
+    const { scaffoldAuth } = await import('../src/cli/commands/auth.js');
+    const testAuthApp = resolve(process.cwd(), 'test-auth-app');
+    
+    // First create a starter app to test auth scaffolding inside
+    await createNewProject('test-auth-app', 'ts', 'tailwind');
+
+    const originalCwd = process.cwd();
+    process.chdir(testAuthApp);
+
+    try {
+      scaffoldAuth();
+
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'app/models/User.ts')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'app/controllers/AuthController.ts')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/login.html')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/register.html')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/dashboard.html')), true);
+
+      // Verify routes were appended
+      const routesContent = readFileSync(resolve(testAuthApp, 'routes/web.ts'), 'utf-8');
+      assert.match(routesContent, /AuthController/);
+      assert.match(routesContent, /\/login/);
+      assert.match(routesContent, /\/dashboard/);
+    } finally {
+      process.chdir(originalCwd);
+      if (existsSync(testAuthApp)) {
+        rmSync(testAuthApp, { recursive: true, force: true });
+      }
+    }
+  });
 });

@@ -145,6 +145,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'make:auth':
     case 'auth:scaffold': {
       scaffoldAuth();
       break;
@@ -185,7 +186,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:migration <name>\x1b[0m     Scaffold a new Migration file');
       console.log('  \x1b[32mmake:job <name>\x1b[0m           Scaffold a new Background Job class');
       console.log('  \x1b[32mmake:seeder <name>\x1b[0m        Scaffold a new Database Seeder');
-      console.log('  \x1b[32mauth:scaffold\x1b[0m             Scaffold complete Auth (Model, Controller, Views, Migration)');
+      console.log('  \x1b[32mmake:auth\x1b[0m                 Scaffold complete Auth (Model, Controller, Views, Migration)');
       console.log('  \x1b[32mmigrate\x1b[0m                   Run pending database migrations');
       console.log('  \x1b[32mmigrate:rollback\x1b[0m          Rollback the latest database migration batch');
       console.log('  \x1b[32mdb:seed\x1b[0m                   Seed the database with records');
