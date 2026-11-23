@@ -77,10 +77,25 @@ export function birScripts(): string {
           document.title = doc.title;
         }
 
-        // 2. Morph Body & Containers
+        // 2. Sync Head Elements (Styles & Links)
+        try {
+          var currentStyles = new Set(Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]')).map(function(el) { return el.outerHTML; }));
+          Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]')).forEach(function(el) {
+            if (!currentStyles.has(el.outerHTML)) {
+              document.head.appendChild(el.cloneNode(true));
+            }
+          });
+        } catch (e) {}
+
+        // 3. Morph Body & Containers
         document.body.innerHTML = doc.body.innerHTML;
 
-        // 3. Update History
+        // 4. Refresh Tailwind CDN JIT scanner if present
+        if (window.tailwind && typeof window.tailwind.refresh === 'function') {
+          try { window.tailwind.refresh(); } catch (e) {}
+        }
+
+        // 5. Update History
         if (pushState) {
           window.history.pushState({ turbo: true, url: url }, '', url);
         }
