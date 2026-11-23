@@ -82,6 +82,12 @@ export async function createNewProject(
   mkdirSync(join(projectDir, 'routes'), { recursive: true });
   mkdirSync(join(projectDir, 'views/layouts'), { recursive: true });
   mkdirSync(join(projectDir, 'public/css'), { recursive: true });
+  mkdirSync(join(projectDir, 'storage/cache'), { recursive: true });
+  mkdirSync(join(projectDir, 'storage/app'), { recursive: true });
+  mkdirSync(join(projectDir, 'storage/logs'), { recursive: true });
+  writeFileSync(join(projectDir, 'storage/cache/.gitkeep'), '', 'utf-8');
+  writeFileSync(join(projectDir, 'storage/app/.gitkeep'), '', 'utf-8');
+  writeFileSync(join(projectDir, 'storage/logs/.gitkeep'), '', 'utf-8');
   if (isTailwind) {
     mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
   }
@@ -522,7 +528,7 @@ app.listen(PORT, '0.0.0.0', (port) => {
     outputDirectory: "public",
     functions: {
       "api/index.js": {
-        includeFiles: "{views/**,public/build/**}"
+        includeFiles: "{views/**,storage/**,public/build/**}"
       }
     },
     rewrites: [

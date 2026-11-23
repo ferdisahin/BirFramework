@@ -419,7 +419,7 @@ export function makeVercel() {
     outputDirectory: "public",
     functions: {
       "api/index.js": {
-        includeFiles: "{views/**,docs/**,public/build/**}"
+        includeFiles: "{views/**,docs/**,storage/**,public/build/**}"
       }
     },
     rewrites: [
