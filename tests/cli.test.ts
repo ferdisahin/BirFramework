@@ -162,4 +162,28 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       }
     }
   });
+
+  test('should scaffold component and folder component with companion JS via makeComponent', async () => {
+    const { makeComponent } = await import('../src/cli/commands/make.js');
+    const flatFile = resolve(process.cwd(), 'views/components/badge.bir');
+    const folderDir = resolve(process.cwd(), 'views/components/testmodal');
+    const folderBir = resolve(folderDir, 'testmodal.bir');
+    const folderJs = resolve(folderDir, 'testmodal.js');
+
+    try {
+      // 1. Flat component
+      makeComponent('badge');
+      assert.strictEqual(existsSync(flatFile), true);
+      assert.match(readFileSync(flatFile, 'utf-8'), /class="badge"/);
+
+      // 2. Folder component with companion JS (-j)
+      makeComponent('testmodal', true);
+      assert.strictEqual(existsSync(folderBir), true);
+      assert.strictEqual(existsSync(folderJs), true);
+      assert.match(readFileSync(folderJs, 'utf-8'), /\[BirComponent\] testmodal initialized/);
+    } finally {
+      if (existsSync(flatFile)) rmSync(flatFile, { force: true });
+      if (existsSync(folderDir)) rmSync(folderDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -1,6 +1,8 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import type { Server } from 'node:http';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Application } from '../src/core/application.js';
 import { app } from '../example/app.js';
 import { defaultViewEngine, ViewEngine } from '../src/view/engine.js';
@@ -174,6 +176,31 @@ describe('BirFramework Modern Blade Component & Slot Tests', () => {
       assert.ok(prodOutput.includes('/resources/js/app.js'));
     } finally {
       process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  test('should render co-located folder component and auto-inject companion JS deduplicated', () => {
+    const compDir = resolve(process.cwd(), 'views/components/mymodal');
+    mkdirSync(compDir, { recursive: true });
+    writeFileSync(resolve(compDir, 'mymodal.bir'), '<div class="mymodal-box">{{ title }}: {!! slot !!}</div>', 'utf-8');
+    writeFileSync(resolve(compDir, 'mymodal.js'), 'window.myModalLoaded = true;', 'utf-8');
+
+    try {
+      const template = `
+        <x-mymodal title="Alert 1">First Content</x-mymodal>
+        <x-mymodal title="Alert 2">Second Content</x-mymodal>
+      `;
+
+      const rendered = defaultViewEngine.compile(template);
+      assert.ok(rendered.includes('Alert 1: First Content'));
+      assert.ok(rendered.includes('Alert 2: Second Content'));
+      assert.ok(rendered.includes('window.myModalLoaded = true;'));
+
+      // Verify companion script was only injected ONCE despite 2 component invocations
+      const scriptMatches = rendered.match(/data-bir-component="mymodal"/g);
+      assert.strictEqual(scriptMatches?.length, 1, 'Companion JS must be injected only once (deduplicated)');
+    } finally {
+      rmSync(compDir, { recursive: true, force: true });
     }
   });
 });

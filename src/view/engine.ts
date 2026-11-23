@@ -21,6 +21,7 @@ export class ViewEngine {
   private rawBlocks = new Map<string, string>();
   private rawBlockCounter = 0;
   private compileDepth = 0;
+  private loadedComponentScripts = new Set<string>();
 
   constructor(options: ViewEngineOptions = {}) {
     this.viewsDir = options.viewsDir || resolve(process.cwd(), 'views');
@@ -38,6 +39,7 @@ export class ViewEngine {
   }
 
   public render(templateName: string, data: Record<string, any> = {}): string {
+    this.loadedComponentScripts.clear();
     const rawTemplate = this.loadTemplate(templateName);
     const viewScope = {
       version: VERSION,
@@ -82,6 +84,10 @@ export class ViewEngine {
         join(dir, `${cleanName}.html`),
         join(dir, 'components', `${cleanName}.bir`),
         join(dir, 'components', `${cleanName}.html`),
+        join(dir, 'components', cleanName, `${cleanName}.bir`),
+        join(dir, 'components', cleanName, `${cleanName}.html`),
+        join(dir, 'components', cleanName, `index.bir`),
+        join(dir, 'components', cleanName, `index.html`),
         join(dir, `${cleanName}.view`),
       ];
 
@@ -95,6 +101,49 @@ export class ViewEngine {
     }
 
     throw new Error(`[BirView] View template not found: "${name}" in ${this.viewsDir}`);
+  }
+
+  /**
+   * Discovers optional companion JavaScript for a component (e.g. modal/modal.js)
+   */
+  public findCompanionScript(componentName: string): string | null {
+    if (typeof componentName !== 'string' || componentName.includes('\0') || componentName.includes('..')) {
+      return null;
+    }
+
+    const cleanName = componentName.replace(/\.(bir|html|blade\.php|view)$/, '').replace(/\./g, '/');
+    if (cleanName.includes('..')) {
+      return null;
+    }
+
+    const searchDirs = [
+      this.viewsDir,
+      join(process.cwd(), 'views'),
+      join(process.cwd(), '..', 'views'),
+      '/var/task/views',
+    ];
+    const uniqueDirs = [...new Set(searchDirs.filter(Boolean))];
+
+    for (const dir of uniqueDirs) {
+      const resolvedDir = resolve(dir);
+      const possibleScripts = [
+        join(dir, 'components', cleanName, `${cleanName}.js`),
+        join(dir, 'components', cleanName, `${cleanName}.ts`),
+        join(dir, 'components', cleanName, `index.js`),
+        join(dir, 'components', cleanName, `index.ts`),
+        join(dir, 'components', `${cleanName}.js`),
+        join(dir, 'components', `${cleanName}.ts`),
+      ];
+
+      for (const s of possibleScripts) {
+        const resolvedScript = resolve(s);
+        const rel = relative(resolvedDir, resolvedScript);
+        if (!rel.startsWith('..') && existsSync(resolvedScript)) {
+          return readFileSync(resolvedScript, 'utf-8');
+        }
+      }
+    }
+    return null;
   }
 
   /**
@@ -353,7 +402,14 @@ export class ViewEngine {
           __rawSlots: ['slot', '$slot', ...Object.keys(slots.namedSlots)],
         };
 
-        const componentTemplate = this.loadTemplate(componentName);
+        let componentTemplate = this.loadTemplate(componentName);
+        if (!this.loadedComponentScripts.has(componentName)) {
+          const companionScript = this.findCompanionScript(componentName);
+          if (companionScript) {
+            this.loadedComponentScripts.add(componentName);
+            componentTemplate += `\n<script data-bir-component="${componentName}">\n${companionScript}\n</script>`;
+          }
+        }
         return this.compile(componentTemplate, componentScope);
       });
     }
@@ -367,7 +423,14 @@ export class ViewEngine {
         slot: '',
         $slot: '',
       };
-      const componentTemplate = this.loadTemplate(componentName);
+      let componentTemplate = this.loadTemplate(componentName);
+      if (!this.loadedComponentScripts.has(componentName)) {
+        const companionScript = this.findCompanionScript(componentName);
+        if (companionScript) {
+          this.loadedComponentScripts.add(componentName);
+          componentTemplate += `\n<script data-bir-component="${componentName}">\n${companionScript}\n</script>`;
+        }
+      }
       return this.compile(componentTemplate, componentScope);
     });
 

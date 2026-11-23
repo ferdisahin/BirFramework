@@ -515,3 +515,75 @@ export default ${cleanName};
   console.log(`\x1b[32m✔ Service Provider created successfully:\x1b[0m app/providers/${cleanName}.ts`);
 }
 
+export function makeComponent(name: string, withJs: boolean = false) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a component name. E.g.: bir make:component modal [-j|--js]');
+    return;
+  }
+  try {
+    assertValidName(name);
+  } catch (err: any) {
+    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
+    return;
+  }
+
+  const cleanName = name.replace(/\.bir$/, '').replace(/\.html$/, '');
+  const baseName = cleanName.split('/').pop() || cleanName;
+
+  if (withJs) {
+    // Co-located folder component: views/components/<name>/<name>.bir and <name>.js
+    const componentDir = resolve(process.cwd(), 'views/components', cleanName);
+    const templatePath = resolve(componentDir, `${baseName}.bir`);
+    const scriptPath = resolve(componentDir, `${baseName}.js`);
+
+    if (existsSync(templatePath)) {
+      console.error(`\x1b[31m[Error]\x1b[0m Component ${cleanName} already exists!`);
+      return;
+    }
+
+    ensureDir(templatePath);
+
+    const templateContent = `<div class="${baseName}">
+  <h3>{{ title || '${baseName}' }}</h3>
+  <div>
+    {!! slot !!}
+  </div>
+</div>
+`;
+
+    const scriptContent = `// ${baseName}.js - Companion script for <x-${cleanName.replace(/\//g, '.')}>
+console.log('[BirComponent] ${baseName} initialized');
+`;
+
+    writeFileSync(templatePath, templateContent, 'utf-8');
+    writeFileSync(scriptPath, scriptContent, 'utf-8');
+
+    console.log(`\x1b[32m✔ Component created successfully with companion JavaScript:\x1b[0m`);
+    console.log(`  ➜ views/components/${cleanName}/${baseName}.bir`);
+    console.log(`  ➜ views/components/${cleanName}/${baseName}.js`);
+    console.log(`\x1b[90mUsage in views: <x-${cleanName.replace(/\//g, '.')} />\x1b[0m`);
+  } else {
+    // Single file component: views/components/<name>.bir
+    const targetPath = resolve(process.cwd(), 'views/components', `${cleanName}.bir`);
+
+    if (existsSync(targetPath)) {
+      console.error(`\x1b[31m[Error]\x1b[0m Component ${cleanName} already exists!`);
+      return;
+    }
+
+    ensureDir(targetPath);
+
+    const templateContent = `<div class="${baseName}">
+  <h3>{{ title || '${baseName}' }}</h3>
+  <div>
+    {!! slot !!}
+  </div>
+</div>
+`;
+
+    writeFileSync(targetPath, templateContent, 'utf-8');
+    console.log(`\x1b[32m✔ Component created successfully:\x1b[0m views/components/${cleanName}.bir`);
+    console.log(`\x1b[90mUsage in views: <x-${cleanName.replace(/\//g, '.')} />\x1b[0m`);
+  }
+}
+

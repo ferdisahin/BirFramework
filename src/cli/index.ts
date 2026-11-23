@@ -1,4 +1,4 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
@@ -129,6 +129,13 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'make:provider': {
       makeProvider(args[1] || '');
+      break;
+    }
+
+    case 'make:component': {
+      const withJs = args.includes('-j') || args.includes('--js');
+      const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
+      makeComponent(name, withJs);
       break;
     }
 
@@ -267,6 +274,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:listener <name> [--event]\x1b[0m Scaffold a new Event Listener');
       console.log('  \x1b[32mmake:request <name>\x1b[0m       Scaffold a new Form Request class');
       console.log('  \x1b[32mmake:provider <name>\x1b[0m      Scaffold a new Service Provider class');
+      console.log('  \x1b[32mmake:component <name> [-j]\x1b[0m Scaffold a Blade component (optional -j for companion JS)');
       console.log('  \x1b[32mmake:auth\x1b[0m                 Scaffold complete Auth (Model, Controller, Views, Migration)');
       console.log('  \x1b[32mmake:vercel\x1b[0m               Scaffold zero-config Vercel Serverless deployment');
       console.log('  \x1b[32mmigrate\x1b[0m                   Run pending database migrations');
