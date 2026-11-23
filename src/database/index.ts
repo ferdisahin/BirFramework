@@ -5,4 +5,5 @@ export * from './model.js';
 export * from './schema.js';
 export * from './migrator.js';
 export * from './seeder.js';
+export * from './factory.js';
 

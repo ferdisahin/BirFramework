@@ -1,8 +1,8 @@
-export type Factory<T = any> = (container: Container) => T | Promise<T>;
+export type ContainerFactory<T = any> = (container: Container) => T | Promise<T>;
 export type Token<T = any> = string | symbol | (new (...args: any[]) => T);
 
 interface Binding<T = any> {
-  factory: Factory<T>;
+  factory: ContainerFactory<T>;
   singleton: boolean;
   instance?: T;
 }
@@ -10,7 +10,7 @@ interface Binding<T = any> {
 export class Container {
   private bindings = new Map<Token, Binding>();
 
-  public bind<T>(token: Token<T>, factory: Factory<T>): this {
+  public bind<T>(token: Token<T>, factory: ContainerFactory<T>): this {
     this.bindings.set(token, {
       factory,
       singleton: false,
@@ -18,10 +18,10 @@ export class Container {
     return this;
   }
 
-  public singleton<T>(token: Token<T>, factoryOrInstance: Factory<T> | T): this {
+  public singleton<T>(token: Token<T>, factoryOrInstance: ContainerFactory<T> | T): this {
     if (typeof factoryOrInstance === 'function' && !(factoryOrInstance as any).prototype) {
       this.bindings.set(token, {
-        factory: factoryOrInstance as Factory<T>,
+        factory: factoryOrInstance as ContainerFactory<T>,
         singleton: true,
       });
     } else if (typeof factoryOrInstance === 'function') {

@@ -234,3 +234,36 @@ export default ${cleanName};
   writeFileSync(targetPath, template, 'utf-8');
   console.log(`\x1b[32m✔ Seeder created successfully:\x1b[0m database/seeders/${cleanName}.ts`);
 }
+
+export function makeFactory(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a factory name. E.g.: bir make:factory UserFactory');
+    return;
+  }
+
+  const cleanName = name.endsWith('Factory') ? name : `${name}Factory`;
+  const modelName = cleanName.replace(/Factory$/, '');
+  const targetPath = resolve(process.cwd(), 'database/factories', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Factory ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const template = `import { Factory, type Faker } from 'birframework';
+import { ${modelName} } from '../../app/models/${modelName}.js';
+
+export const ${cleanName} = Factory.define(${modelName}, (faker: Faker) => ({
+  name: faker.name(),
+  email: faker.email(),
+  created_at: new Date(),
+  updated_at: new Date(),
+}));
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Factory created successfully:\x1b[0m database/factories/${cleanName}.ts`);
+}
