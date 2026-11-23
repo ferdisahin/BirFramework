@@ -47,10 +47,11 @@ export class ViewEngine {
   }
 
   public loadTemplate(name: string): string {
-    const cleanName = name.replace(/\.(html|bir|blade\.php)$/, '').replace(/\./g, '/');
+    const cleanName = name.replace(/\.(bir|html|blade\.php|view)$/, '').replace(/\./g, '/');
     const possiblePaths = [
-      join(this.viewsDir, `${cleanName}.html`),
       join(this.viewsDir, `${cleanName}.bir`),
+      join(this.viewsDir, `${cleanName}.html`),
+      join(this.viewsDir, 'components', `${cleanName}.bir`),
       join(this.viewsDir, 'components', `${cleanName}.html`),
       join(this.viewsDir, `${cleanName}.view`),
     ];
@@ -109,6 +110,11 @@ export class ViewEngine {
       // 1.1 Process {!! bir_scripts() !!} or @birScripts for Instant Turbo Navigation
       output = output.replace(/\{!!\s*(?:bir_scripts|birScripts)\(\)?\s*!!\}/g, birScripts());
       output = output.replace(/@birScripts/g, birScripts());
+
+      // 1.1.5 Process @vite(['resources/css/app.css', 'resources/js/app.js']) or @vite('entry')
+      output = output.replace(/@vite\s*\(([\s\S]*?)\)/g, (_, rawArgs) => {
+        return this.compileViteTags(rawArgs.trim());
+      });
 
       // 1.2 Markdown Block: @markdown ... @endmarkdown
       output = output.replace(/@markdown([\s\S]*?)@endmarkdown/g, (_, md) => {
@@ -422,6 +428,73 @@ export class ViewEngine {
     }
 
     return output;
+  }
+
+  /**
+   * Compiles Laravel-style @vite entry points: @vite(['resources/css/app.css', 'resources/js/app.js'])
+   * In Development: Points to Vite Dev Server (http://localhost:5173/@vite/client + entries)
+   * In Production: Looks for public/build/manifest.json and outputs hashed asset tags
+   */
+  public compileViteTags(rawArgs: string): string {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const viteHost = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+
+    // Parse array or single string argument e.g. ['resources/css/app.css'] or 'resources/js/app.js'
+    const entryClean = rawArgs.replace(/^[\[\s]+|[\]\s]+$/g, '');
+    const entries = entryClean
+      .split(',')
+      .map((e) => e.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean);
+
+    if (isDev) {
+      const tags = [
+        `<script type="module" src="${viteHost}/@vite/client"></script>`,
+        ...entries.map((entry) => {
+          if (entry.endsWith('.css')) {
+            return `<link rel="stylesheet" href="${viteHost}/${entry}">`;
+          }
+          return `<script type="module" src="${viteHost}/${entry}"></script>`;
+        }),
+      ];
+      return tags.join('\n');
+    }
+
+    // Production build: Check for public/build/manifest.json
+    const manifestPath = join(process.cwd(), 'public', 'build', 'manifest.json');
+    let manifest: Record<string, { file: string; css?: string[] }> = {};
+    if (existsSync(manifestPath)) {
+      try {
+        manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+      } catch {
+        // fallback
+      }
+    }
+
+    const tags: string[] = [];
+    for (const entry of entries) {
+      const item = manifest[entry];
+      if (item) {
+        if (item.file.endsWith('.css')) {
+          tags.push(`<link rel="stylesheet" href="/build/${item.file}">`);
+        } else {
+          tags.push(`<script type="module" src="/build/${item.file}"></script>`);
+        }
+        if (item.css) {
+          for (const cssFile of item.css) {
+            tags.push(`<link rel="stylesheet" href="/build/${cssFile}">`);
+          }
+        }
+      } else {
+        // Fallback to direct path in public
+        if (entry.endsWith('.css')) {
+          tags.push(`<link rel="stylesheet" href="/${entry}">`);
+        } else {
+          tags.push(`<script type="module" src="/${entry}"></script>`);
+        }
+      }
+    }
+
+    return tags.join('\n');
   }
 
   private resolveVariable(path: string, scope: Record<string, any>): any {

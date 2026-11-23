@@ -159,6 +159,23 @@ describe('BirFramework Modern Blade Component & Slot Tests', () => {
     assert.ok(compiled.includes('<h3>Analytics</h3>'));
     assert.ok(compiled.includes('Active Users: 120'));
   });
+
+  test('should compile @vite directive in development and production modes', () => {
+    const devOutput = defaultViewEngine.compile(`@vite(['resources/css/app.css', 'resources/js/app.js'])`);
+    assert.ok(devOutput.includes('/@vite/client'));
+    assert.ok(devOutput.includes('resources/css/app.css'));
+    assert.ok(devOutput.includes('resources/js/app.js'));
+
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      const prodOutput = defaultViewEngine.compile(`@vite(['resources/css/app.css', 'resources/js/app.js'])`);
+      assert.ok(prodOutput.includes('/resources/css/app.css'));
+      assert.ok(prodOutput.includes('/resources/js/app.js'));
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
 });
 
 describe('BirFramework View Engine & Directive Tests', () => {

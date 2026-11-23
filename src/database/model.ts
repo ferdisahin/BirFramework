@@ -2,7 +2,13 @@ import { QueryBuilder } from './query.js';
 import { dbConnection } from './connection.js';
 import type { LengthAwarePaginator, PaginationOptions } from '../pagination/index.js';
 
-export class Model {
+export type ModelAttributes<T> = {
+  [K in keyof T as T[K] extends Function ? never : K]?: T[K];
+};
+
+export class Model<T = any> {
+  [key: string]: any;
+
   public static table: string = '';
   public static primaryKey: string = 'id';
   public static timestamps: boolean = true;
@@ -17,27 +23,27 @@ export class Model {
     return `${this.name || 'Model'}:${event}`;
   }
 
-  public static creating(cb: (model: any) => Promise<void> | void): void {
+  public static creating<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('creating', cb);
   }
 
-  public static created(cb: (model: any) => Promise<void> | void): void {
+  public static created<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('created', cb);
   }
 
-  public static saving(cb: (model: any) => Promise<void> | void): void {
+  public static saving<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('saving', cb);
   }
 
-  public static saved(cb: (model: any) => Promise<void> | void): void {
+  public static saved<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('saved', cb);
   }
 
-  public static deleting(cb: (model: any) => Promise<void> | void): void {
+  public static deleting<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('deleting', cb);
   }
 
-  public static deleted(cb: (model: any) => Promise<void> | void): void {
+  public static deleted<M extends typeof Model>(this: M, cb: (model: InstanceType<M>) => Promise<void> | void): void {
     this.addHook('deleted', cb);
   }
 
