@@ -1,6 +1,7 @@
 import type { Context } from '../http/context.js';
 import { Hash } from './hash.js';
 import { Model } from '../database/model.js';
+import { PersonalAccessToken } from './token.js';
 
 export interface Credentials {
   email: string;
@@ -19,10 +20,17 @@ export class Auth {
     ctx.session.set(this.sessionKey, id);
   }
 
+  public static token(ctx: Context): PersonalAccessToken | null {
+    return (ctx as any)?.token || null;
+  }
+
   public static id(ctx: Context): any | null {
     const testHeader = ctx?.headers?.['x-bir-test-user'];
     if (testHeader && process.env.NODE_ENV === 'test') {
       return testHeader;
+    }
+    if ((ctx as any)?._bir_token_user_id !== undefined) {
+      return (ctx as any)._bir_token_user_id;
     }
     if (!ctx || !ctx.session) return null;
     return ctx.session.get(this.sessionKey, ctx.session.get('user_id', null));
@@ -32,7 +40,30 @@ export class Auth {
     return Boolean(this.id(ctx));
   }
 
+  public static async authenticateToken(ctx: Context): Promise<PersonalAccessToken | null> {
+    if ((ctx as any)?.token) {
+      return (ctx as any).token;
+    }
+    const authHeader = ctx?.headers?.['authorization'] as string | undefined;
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      const plainToken = authHeader.substring(7).trim();
+      const tokenRecord = await PersonalAccessToken.findToken(plainToken);
+      if (tokenRecord) {
+        (ctx as any).token = tokenRecord;
+        (ctx as any)._bir_token_user_id = tokenRecord.tokenable_id;
+        tokenRecord.last_used_at = new Date().toISOString();
+        await tokenRecord.save().catch(() => {});
+        return tokenRecord;
+      }
+    }
+    return null;
+  }
+
   public static async user<T = any>(ctx: Context, userModel?: typeof Model): Promise<T | null> {
+    if (!this.check(ctx)) {
+      await this.authenticateToken(ctx);
+    }
+
     const id = this.id(ctx);
     if (!id) return null;
 
@@ -68,5 +99,7 @@ export class Auth {
       ctx.session.remove(this.sessionKey);
       ctx.session.clear();
     }
+    delete (ctx as any).token;
+    delete (ctx as any)._bir_token_user_id;
   }
 }

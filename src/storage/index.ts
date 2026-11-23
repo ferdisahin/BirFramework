@@ -1,5 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, statSync, copyFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
+import { S3Disk, type S3DiskOptions } from './drivers/s3.js';
+
+export * from './drivers/s3.js';
 
 export interface StorageDisk {
   put(path: string, content: string | Buffer): Promise<boolean>;
@@ -10,6 +13,7 @@ export interface StorageDisk {
   size(path: string): Promise<number>;
   url(path: string): string;
   path(path: string): string;
+  temporaryUrl?(path: string, expiresInSeconds?: number): string | Promise<string>;
 }
 
 export class LocalDisk implements StorageDisk {
@@ -87,6 +91,21 @@ export class StorageManager {
 
   public disk(name?: string): StorageDisk {
     const diskName = name || this.defaultDiskName;
+
+    // Auto-initialize s3 disk if requested
+    if (diskName === 's3' && !this.disks.has('s3')) {
+      const bucket = process.env.AWS_BUCKET || process.env.S3_BUCKET || 'default';
+      this.disks.set('s3', new S3Disk({
+        bucket,
+        region: process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1',
+        endpoint: process.env.AWS_ENDPOINT || process.env.S3_ENDPOINT,
+        key: process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID,
+        secret: process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY,
+        url: process.env.AWS_URL || process.env.S3_URL,
+        forcePathStyle: process.env.AWS_USE_PATH_STYLE_ENDPOINT === 'true',
+      }));
+    }
+
     const disk = this.disks.get(diskName);
     if (!disk) {
       throw new Error(`[BirStorage] Storage disk [${diskName}] is not configured.`);

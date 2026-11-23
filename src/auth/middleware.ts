@@ -1,10 +1,19 @@
 import type { Middleware } from '../router/middleware.js';
 import { Auth } from './auth.js';
 
-export function auth(options: { redirectTo?: string } = {}): Middleware {
+export interface AuthMiddlewareOptions {
+  redirectTo?: string;
+  abilities?: string[];
+}
+
+export function auth(options: AuthMiddlewareOptions = {}): Middleware {
   const loginPath = options.redirectTo || '/login';
 
   return async (ctx, next) => {
+    if (!Auth.check(ctx)) {
+      await Auth.authenticateToken(ctx);
+    }
+
     if (!Auth.check(ctx)) {
       const acceptsJson = ctx.headers['accept']?.includes('application/json') || ctx.path.startsWith('/api');
       if (acceptsJson) {
@@ -14,6 +23,38 @@ export function auth(options: { redirectTo?: string } = {}): Middleware {
       ctx.status(302).text('');
       return;
     }
+
+    if (options.abilities && options.abilities.length > 0) {
+      const token = Auth.token(ctx);
+      if (token) {
+        const hasAll = options.abilities.every((ab) => token.can(ab));
+        if (!hasAll) {
+          return ctx.json({ error: 'Forbidden', message: `Missing required token ability: ${options.abilities.join(', ')}` }, 403);
+        }
+      }
+    }
+
+    await next();
+  };
+}
+
+export function hasAbility(ability: string | string[]): Middleware {
+  const abilities = Array.isArray(ability) ? ability : [ability];
+  return async (ctx, next) => {
+    if (!Auth.check(ctx)) {
+      await Auth.authenticateToken(ctx);
+    }
+
+    const token = Auth.token(ctx);
+    if (!token) {
+      return ctx.json({ error: 'Unauthorized', message: 'Personal access token required for ability verification' }, 401);
+    }
+
+    const hasAll = abilities.every((a) => token.can(a));
+    if (!hasAll) {
+      return ctx.json({ error: 'Forbidden', message: `Token lacks required ability: ${abilities.join(', ')}` }, 403);
+    }
+
     await next();
   };
 }
