@@ -111,7 +111,10 @@ export class Router {
         await this.runPipeline(ctx, pipeline, async (c) => {
           const result = await route.handler(c);
           if (result !== undefined && !c.res.writableEnded) {
-            if (typeof result === 'object' && result !== null) {
+            if (result && typeof (result as any).resolve === 'function') {
+              const status = (result as any).statusCode || 200;
+              c.json((result as any).resolve(c), status);
+            } else if (typeof result === 'object' && result !== null) {
               c.json(result);
             } else if (typeof result === 'string') {
               c.text(result);
