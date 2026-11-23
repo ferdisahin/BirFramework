@@ -151,184 +151,101 @@ export class ErrorHandler {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>404: Route Not Found | BirFramework</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <title>404 - Route Not Found | BirFramework</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #09090b;
-      color: #f4f4f5;
-      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 24px;
-      position: relative;
-      overflow: hidden;
-    }
-    .ambient-glow {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -60%);
-      width: 500px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, rgba(139, 92, 246, 0.05) 45%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
-    .wrapper {
-      position: relative;
-      z-index: 1;
-      max-width: 480px;
       text-align: center;
     }
-    .brand-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 11px;
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
       font-weight: 600;
-      color: #a1a1aa;
-      margin-bottom: 24px;
-      backdrop-filter: blur(8px);
-    }
-    .brand-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #6366f1;
-      box-shadow: 0 0 8px #6366f1;
-    }
-    .error-code {
-      font-size: 88px;
-      font-weight: 800;
-      line-height: 1;
-      letter-spacing: -0.05em;
-      background: linear-gradient(180deg, #ffffff 40%, #71717a 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #6b7280;
       margin-bottom: 12px;
+      letter-spacing: 0.05em;
     }
-    .error-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: #ffffff;
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
       letter-spacing: -0.02em;
+      color: #111827;
       margin-bottom: 8px;
     }
-    .error-desc {
+    p {
+      font-size: 14px;
+      color: #6b7280;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #374151;
       font-size: 13px;
-      color: #71717a;
-      line-height: 1.6;
-      margin-bottom: 20px;
     }
-    .path-badge {
-      display: inline-block;
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 8px;
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      color: #818cf8;
-      font-weight: 500;
-      word-break: break-all;
-    }
-    .actions {
+    .links {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      margin-top: 24px;
+      gap: 16px;
+      font-size: 13px;
     }
-    .btn-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 9px 18px;
-      border-radius: 10px;
-      background: #ffffff;
-      color: #09090b;
-      font-size: 12px;
-      font-weight: 600;
+    a {
+      color: #111827;
       text-decoration: none;
-      transition: all 0.15s ease;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    }
-    .btn-primary:hover {
-      background: #f4f4f5;
-      transform: translateY(-1px);
-    }
-    .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 9px 16px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #a1a1aa;
-      font-size: 12px;
       font-weight: 500;
-      text-decoration: none;
-      transition: all 0.15s ease;
+      transition: opacity 0.15s;
     }
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
+    a:hover {
+      text-decoration: underline;
     }
-    .footer {
-      margin-top: 48px;
-      font-size: 11px;
-      color: #52525b;
+    .doc-link {
+      color: #6b7280;
+    }
+    .doc-link:hover {
+      color: #111827;
+    }
+    .brand {
+      position: absolute;
+      bottom: 24px;
+      font-size: 12px;
+      color: #9ca3af;
       letter-spacing: 0.02em;
     }
-    @media (prefers-color-scheme: light) {
-      body { background: #fafafa; color: #09090b; }
-      .ambient-glow { background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 60%); }
-      .brand-badge { background: #ffffff; border-color: #e4e4e7; color: #52525b; }
-      .error-code { background: linear-gradient(180deg, #18181b 30%, #71717a 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-      .error-title { color: #09090b; }
-      .error-desc { color: #71717a; }
-      .path-badge { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
-      .btn-primary { background: #09090b; color: #ffffff; }
-      .btn-primary:hover { background: #18181b; }
-      .btn-secondary { background: #ffffff; border-color: #e4e4e7; color: #52525b; }
-      .btn-secondary:hover { background: #f4f4f5; color: #09090b; }
-      .footer { color: #a1a1aa; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0a0a0a; color: #ededed; }
+      .code { color: #737373; }
+      h1 { color: #ededed; }
+      p { color: #888888; }
+      .path { color: #a1a1aa; }
+      a { color: #ededed; }
+      .doc-link { color: #888888; }
+      .doc-link:hover { color: #ededed; }
+      .brand { color: #404040; }
     }
   </style>
 </head>
 <body>
-  <div class="ambient-glow"></div>
-  <div class="wrapper">
-    <div class="brand-badge">
-      <span class="brand-dot"></span>
-      BirFramework &bull; v${VERSION}
-    </div>
+  <div class="code">404</div>
+  <h1>Route not found</h1>
+  <p>Cannot find <span class="path">${safeMethod} ${safePath}</span></p>
 
-    <div class="error-code">404</div>
-    <h1 class="error-title">Route not found</h1>
-    <p class="error-desc">No route registered for <span class="path-badge">${safeMethod} ${safePath}</span></p>
-
-    <div class="actions">
-      <a href="/" class="btn-primary">&larr; Return Home</a>
-      <a href="https://birframework.dev" target="_blank" class="btn-secondary">Documentation &nearr;</a>
-    </div>
-
-    <div class="footer">
-      BirFramework Full-Stack Runtime
-    </div>
+  <div class="links">
+    <a href="/">&larr; Return Home</a>
+    <span style="color: #6b7280; opacity: 0.4;">&bull;</span>
+    <a href="https://birframework.dev" target="_blank" class="doc-link">Documentation &rarr;</a>
   </div>
+
+  <div class="brand">BirFramework</div>
 </body>
 </html>`;
   }
