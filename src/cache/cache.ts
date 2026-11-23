@@ -9,20 +9,28 @@ export class CacheManager {
 
   constructor() {
     this.defaultStore = process.env.CACHE_STORE || process.env.CACHE_DRIVER || 'memory';
-    this.stores.set('memory', new MemoryStore());
-    this.stores.set('file', new FileStore());
-    this.stores.set('redis', new RedisStore());
   }
 
   /**
-   * Get a cache store instance by name.
+   * Get a cache store instance by name (lazily initialized).
    */
   public store(name?: string): CacheDriver {
     const storeName = name || this.defaultStore;
-    const store = this.stores.get(storeName);
+    let store = this.stores.get(storeName);
 
     if (!store) {
-      throw new Error(`[BirCache] Cache driver "${storeName}" is not registered.`);
+      if (storeName === 'memory') {
+        store = new MemoryStore();
+        this.stores.set('memory', store);
+      } else if (storeName === 'file') {
+        store = new FileStore();
+        this.stores.set('file', store);
+      } else if (storeName === 'redis') {
+        store = new RedisStore();
+        this.stores.set('redis', store);
+      } else {
+        throw new Error(`[BirCache] Cache driver "${storeName}" is not registered.`);
+      }
     }
 
     return store;

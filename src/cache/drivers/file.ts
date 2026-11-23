@@ -13,8 +13,21 @@ export class FileStore implements CacheDriver {
 
   constructor(directory?: string) {
     this.directory = directory ? resolve(directory) : resolve(process.cwd(), 'storage/cache');
-    if (!existsSync(this.directory)) {
-      mkdirSync(this.directory, { recursive: true });
+    try {
+      if (!existsSync(this.directory)) {
+        mkdirSync(this.directory, { recursive: true });
+      }
+    } catch {
+      // In read-only serverless environments (AWS Lambda / Vercel), fallback to /tmp
+      try {
+        const tmpDir = resolve('/tmp/storage/cache');
+        if (!existsSync(tmpDir)) {
+          mkdirSync(tmpDir, { recursive: true });
+        }
+        this.directory = tmpDir;
+      } catch {
+        // Ignore if unable to create tmp directory
+      }
     }
   }
 
@@ -43,8 +56,16 @@ export class FileStore implements CacheDriver {
   }
 
   public async put(key: string, value: any, ttlSeconds?: number): Promise<void> {
-    if (!existsSync(this.directory)) {
-      mkdirSync(this.directory, { recursive: true });
+    try {
+      if (!existsSync(this.directory)) {
+        mkdirSync(this.directory, { recursive: true });
+      }
+    } catch {
+      // Fallback to /tmp if read-only
+      this.directory = resolve('/tmp/storage/cache');
+      if (!existsSync(this.directory)) {
+        try { mkdirSync(this.directory, { recursive: true }); } catch { /* ignore */ }
+      }
     }
 
     const file = this.getFilePath(key);
