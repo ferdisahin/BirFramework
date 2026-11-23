@@ -522,10 +522,7 @@ app.listen(PORT, '0.0.0.0', (port) => {
     outputDirectory: "public",
     functions: {
       "api/index.js": {
-        includeFiles: [
-          "views/**",
-          "public/build/**"
-        ]
+        includeFiles: "{views/**,public/build/**}"
       }
     },
     rewrites: [
