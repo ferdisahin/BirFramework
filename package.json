@@ -1,6 +1,6 @@
 {
   "name": "birframework",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "description": "Next-Gen Full-Stack Framework with Laravel DX and Modern TypeScript Type-Safety",
   "type": "module",
   "main": "./dist/index.js",

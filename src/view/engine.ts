@@ -21,7 +21,7 @@ export class ViewEngine {
   private rawBlocks = new Map<string, string>();
   private rawBlockCounter = 0;
   private compileDepth = 0;
-  private loadedComponentScripts = new Set<string>();
+  private componentScriptsToInject = new Map<string, string>();
 
   constructor(options: ViewEngineOptions = {}) {
     this.viewsDir = options.viewsDir || resolve(process.cwd(), 'views');
@@ -39,7 +39,7 @@ export class ViewEngine {
   }
 
   public render(templateName: string, data: Record<string, any> = {}): string {
-    this.loadedComponentScripts.clear();
+    this.componentScriptsToInject.clear();
     const rawTemplate = this.loadTemplate(templateName);
     const viewScope = {
       version: VERSION,
@@ -368,6 +368,20 @@ export class ViewEngine {
         this.rawBlockCounter = 0;
       }
 
+      // 8. Top-level injection of companion scripts from rendered components (placed before </body> or appended)
+      if (this.compileDepth === 1 && this.componentScriptsToInject.size > 0) {
+        const scriptsHtml = Array.from(this.componentScriptsToInject.entries())
+          .map(([name, script]) => `<script data-bir-component="${name}">\n${script}\n</script>`)
+          .join('\n');
+
+        if (output.includes('</body>')) {
+          output = output.replace('</body>', `${scriptsHtml}\n</body>`);
+        } else {
+          output = `${output}\n${scriptsHtml}`;
+        }
+        this.componentScriptsToInject.clear();
+      }
+
       return output;
     } finally {
       this.compileDepth--;
@@ -402,14 +416,12 @@ export class ViewEngine {
           __rawSlots: ['slot', '$slot', ...Object.keys(slots.namedSlots)],
         };
 
-        let componentTemplate = this.loadTemplate(componentName);
-        if (!this.loadedComponentScripts.has(componentName)) {
-          const companionScript = this.findCompanionScript(componentName);
-          if (companionScript) {
-            this.loadedComponentScripts.add(componentName);
-            componentTemplate += `\n<script data-bir-component="${componentName}">\n${companionScript}\n</script>`;
-          }
+        const companionScript = this.findCompanionScript(componentName);
+        if (companionScript) {
+          this.componentScriptsToInject.set(componentName, companionScript);
         }
+
+        const componentTemplate = this.loadTemplate(componentName);
         return this.compile(componentTemplate, componentScope);
       });
     }
@@ -423,14 +435,13 @@ export class ViewEngine {
         slot: '',
         $slot: '',
       };
-      let componentTemplate = this.loadTemplate(componentName);
-      if (!this.loadedComponentScripts.has(componentName)) {
-        const companionScript = this.findCompanionScript(componentName);
-        if (companionScript) {
-          this.loadedComponentScripts.add(componentName);
-          componentTemplate += `\n<script data-bir-component="${componentName}">\n${companionScript}\n</script>`;
-        }
+
+      const companionScript = this.findCompanionScript(componentName);
+      if (companionScript) {
+        this.componentScriptsToInject.set(componentName, companionScript);
       }
+
+      const componentTemplate = this.loadTemplate(componentName);
       return this.compile(componentTemplate, componentScope);
     });
 
