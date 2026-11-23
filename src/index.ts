@@ -8,6 +8,7 @@ export * from './database/index.js';
 export * from './auth/index.js';
 export * from './validation/index.js';
 export * from './storage/index.js';
+export * from './cache/index.js';
 export * from './queue/index.js';
 export * from './mail/index.js';
 export * from './schedule/index.js';
