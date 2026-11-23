@@ -324,3 +324,47 @@ export default ${cleanName};
   writeFileSync(targetPath, template, 'utf-8');
   console.log(`\x1b[32m✔ Listener created successfully:\x1b[0m app/listeners/${cleanName}.ts`);
 }
+
+export function makeRequest(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a request name. E.g.: bir make:request StoreUserRequest');
+    return;
+  }
+
+  const cleanName = name.endsWith('Request') ? name : `${name}Request`;
+  const targetPath = resolve(process.cwd(), 'app/requests', `${cleanName}.ts`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Form Request ${cleanName} already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const template = `import { FormRequest, type ValidationRules } from 'birframework';
+
+export class ${cleanName} extends FormRequest {
+  /**
+   * Determine if the user is authorized to make this request.
+   */
+  public override async authorize(): Promise<boolean> {
+    return true;
+  }
+
+  /**
+   * Get the validation rules that apply to the request.
+   */
+  public override rules(): ValidationRules {
+    return {
+      // Define your validation rules here, e.g.:
+      // email: 'required|email',
+      // password: 'required|min:8',
+    };
+  }
+}
+export default ${cleanName};
+`;
+
+  writeFileSync(targetPath, template, 'utf-8');
+  console.log(`\x1b[32m✔ Form Request created successfully:\x1b[0m app/requests/${cleanName}.ts`);
+}

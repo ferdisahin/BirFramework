@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defaultViewEngine, type ViewEngine } from '../view/engine.js';
 import type { Session } from '../auth/session.js';
-import { Validator, type ValidationRules } from '../validation/index.js';
+import { Validator, type ValidationRules, type FormRequest } from '../validation/index.js';
 import { UploadedFile } from './uploaded-file.js';
 import { parseMultipart } from './multipart.js';
 import { __, Lang } from '../localization/translator.js';
@@ -150,6 +150,16 @@ export class Context {
     const body = (await this.body()) || {};
     const data = { ...this.query, ...body, ...this.params };
     return Validator.validate<T>(data, rules);
+  }
+
+  /**
+   * Validate request using a dedicated FormRequest class
+   */
+  public async validateWith<R extends FormRequest<any>>(
+    RequestClass: new (ctx: Context) => R
+  ): Promise<ReturnType<R['validated']>> {
+    const requestInstance = new RequestClass(this);
+    return requestInstance.validate();
   }
 
   public json(data: any, statusCode?: number): void {

@@ -1,7 +1,8 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeSeeder, makeFactory, makeEvent, makeListener } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
+import { runTinker } from './commands/tinker.js';
 import { defaultRouter } from '../router/router.js';
 import { migrator } from '../database/migrator.js';
 import { worker } from '../queue/worker.js';
@@ -111,6 +112,11 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'make:request': {
+      makeRequest(args[1] || '');
+      break;
+    }
+
     case 'db:seed': {
       await SeederRunner.run();
       break;
@@ -188,6 +194,11 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'tinker': {
+      await runTinker();
+      break;
+    }
+
     case 'new': {
       const name = args[1] && !args[1].startsWith('--') ? args[1] : undefined;
       const hasJs = args.includes('--js');
@@ -217,6 +228,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css]\x1b[0m Create a new project (Tailwind default)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
       console.log('  \x1b[32mtest [filter]\x1b[0m             Run application automated test suites');
+      console.log('  \x1b[32mtinker\x1b[0m                    Start interactive REPL console with auto-loaded models');
       console.log('  \x1b[32mroute:list\x1b[0m                List all registered application routes');
       console.log('  \x1b[32mmake:controller <name>\x1b[0m    Scaffold a new Controller');
       console.log('  \x1b[32mmake:middleware <name>\x1b[0m    Scaffold a new Middleware');
@@ -227,6 +239,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:factory <name>\x1b[0m       Scaffold a new Model Factory');
       console.log('  \x1b[32mmake:event <name>\x1b[0m         Scaffold a new Event class');
       console.log('  \x1b[32mmake:listener <name> [--event]\x1b[0m Scaffold a new Event Listener');
+      console.log('  \x1b[32mmake:request <name>\x1b[0m       Scaffold a new Form Request class');
       console.log('  \x1b[32mmake:auth\x1b[0m                 Scaffold complete Auth (Model, Controller, Views, Migration)');
       console.log('  \x1b[32mmigrate\x1b[0m                   Run pending database migrations');
       console.log('  \x1b[32mmigrate:rollback\x1b[0m          Rollback the latest database migration batch');

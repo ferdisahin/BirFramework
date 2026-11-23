@@ -1,6 +1,6 @@
 {
   "name": "birframework",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Next-Gen Full-Stack Framework with Laravel DX and Modern TypeScript Type-Safety",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test tests/app.test.ts tests/database.test.ts tests/auth.test.ts tests/features.test.ts tests/advanced.test.ts tests/cli.test.ts tests/cache.test.ts tests/resources.test.ts tests/factory.test.ts tests/events.test.ts tests/upload.test.ts tests/testing.test.ts tests/lifecycle-softdeletes.test.ts tests/localization.test.ts",
+    "test": "tsx --test tests/app.test.ts tests/database.test.ts tests/auth.test.ts tests/features.test.ts tests/advanced.test.ts tests/cli.test.ts tests/cache.test.ts tests/resources.test.ts tests/factory.test.ts tests/events.test.ts tests/upload.test.ts tests/testing.test.ts tests/lifecycle-softdeletes.test.ts tests/localization.test.ts tests/form-request.test.ts",
     "prepublishOnly": "npm run build && npm test",
     "bump": "node scripts/bump.js",
     "bir": "tsx src/cli/index.ts",

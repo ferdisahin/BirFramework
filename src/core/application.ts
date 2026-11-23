@@ -122,7 +122,26 @@ export class Application {
       }
     };
 
-    await dispatch(0);
+    try {
+      await dispatch(0);
+    } catch (err: any) {
+      if (!ctx.res.writableEnded) {
+        if (err.name === 'ValidationError') {
+          ctx.json({ message: err.message, errors: err.errors }, 422);
+          return;
+        }
+        if (err.name === 'AuthorizationError') {
+          ctx.json({ message: err.message, error: 'Forbidden' }, 403);
+          return;
+        }
+        console.error(`[BirFramework Error]`, err);
+        ctx.json({
+          error: 'Internal Server Error',
+          message: err.message,
+          stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+        }, 500);
+      }
+    }
   }
 
   public port: number = 3000;
@@ -131,24 +150,7 @@ export class Application {
     let currentPort = port;
 
     this.server = createServer(async (req, res) => {
-      const ctx = new Context(req, res);
-
-      try {
-        await this.handle(ctx);
-      } catch (err: any) {
-        if (!res.writableEnded) {
-          if (err.name === 'ValidationError') {
-            ctx.json({ message: err.message, errors: err.errors }, 422);
-            return;
-          }
-          console.error(`[BirFramework Error]`, err);
-          ctx.json({
-            error: 'Internal Server Error',
-            message: err.message,
-            stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
-          }, 500);
-        }
-      }
+      await this.handle(req, res);
     });
 
     this.server.on('error', (err: any) => {
