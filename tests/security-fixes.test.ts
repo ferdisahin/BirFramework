@@ -797,4 +797,127 @@ describe('BirFramework Security Fixes Verification Tests', () => {
       await client.close();
     }
   });
+
+  // 21. Mass Assignment Protection in Eloquent Model
+  test('Model protects sensitive attributes from mass assignment via fillable and guarded', async () => {
+    const { Model } = await import('../src/database/model.js');
+
+    class Account extends Model {
+      public static override fillable = ['name', 'email'];
+      public static override guarded = ['id', 'is_admin', 'balance'];
+    }
+
+    const payload = {
+      name: 'John Doe',
+      email: 'john@example.com',
+      is_admin: true,
+      balance: 1000000,
+      __proto__: { polluted: true },
+    };
+
+    const filtered = Account.filterFillable(payload);
+    assert.strictEqual(filtered.name, 'John Doe');
+    assert.strictEqual(filtered.email, 'john@example.com');
+    assert.strictEqual(filtered.is_admin, undefined, 'is_admin must be stripped');
+    assert.strictEqual(filtered.balance, undefined, 'balance must be stripped');
+    assert.strictEqual(filtered['__proto__'], undefined);
+
+    const account = new Account();
+    account.fill(payload);
+    assert.strictEqual(account.name, 'John Doe');
+    assert.strictEqual(account.is_admin, undefined);
+  });
+
+  // 22. Safe Markdown Link and Image URL Sanitization
+  test('parseMarkdown blocks javascript: URLs and escapes quotes in links/images', async () => {
+    const { parseMarkdown } = await import('../src/view/markdown.js');
+
+    const evilLink = '[Click me](javascript:alert("XSS"))';
+    const linkHtml = parseMarkdown(evilLink);
+    assert.ok(!linkHtml.includes('javascript:alert'), 'Must sanitize javascript: protocol in link');
+    assert.ok(linkHtml.includes('<a href="#">Click me</a>'));
+
+    const evilImg = '![Evil](javascript:alert(1))';
+    const imgHtml = parseMarkdown(evilImg);
+    assert.ok(!imgHtml.includes('javascript:alert'), 'Must sanitize javascript: in image');
+    assert.ok(imgHtml.includes('src="#"'));
+  });
+
+  // 23. Blade Component Bound Props RCE & Prototype Pollution Prevention
+  test('Blade components block dangerous expressions and prototype pollution in bound props', async () => {
+    const { ViewEngine } = await import('../src/view/engine.js');
+    const engine = new ViewEngine();
+
+    const template = '<x-card :data="process.exit(1)">Card Content</x-card>';
+    // RCE in :data must not execute
+    assert.doesNotThrow(() => {
+      engine.compile(template, {});
+    });
+
+    const protoTemplate = '<x-card :__proto__="polluted">Card Content</x-card>';
+    engine.compile(protoTemplate, {});
+    assert.strictEqual((Object.prototype as any).polluted, undefined);
+  });
+
+  // 24. Validation unique rule identifier sanitization
+  test('Validator unique rule rejects SQL injection in table or column identifier', async () => {
+    const { Validator } = await import('../src/validation/index.js');
+
+    await assert.rejects(async () => {
+      await Validator.validate(
+        { email: 'test@example.com' },
+        { email: 'unique:users` WHERE 1=1; DROP TABLE users; --,email' }
+      );
+    }, /Unsafe table or column identifier in unique rule/);
+  });
+
+  // 25. SchemaBuilder identifier assert and default quote escaping
+  test('SchemaBuilder validates identifiers and escapes single quotes in default values', async () => {
+    const { ColumnDefinition, Blueprint } = await import('../src/database/schema.js');
+
+    assert.throws(() => {
+      new ColumnDefinition('id; DROP TABLE users;', 'INTEGER');
+    }, /Unsafe SQL identifier detected/);
+
+    const col = new ColumnDefinition('username', 'VARCHAR(255)');
+    col.default("O'Reilly");
+    const sql = col.toSql('sqlite');
+    assert.ok(sql.includes("DEFAULT 'O''Reilly'"), 'Single quote must be escaped as double single-quotes');
+  });
+
+  // 26. Email Header Injection Prevention
+  test('MailManager strips newline characters from recipient, from and subject', async () => {
+    const { Mail } = await import('../src/mail/index.js');
+    Mail.fake();
+
+    await Mail.to('victim@example.com\r\nBcc: evil@attacker.com').raw('Hello', {
+      subject: 'Welcome\r\nSubject: Injected Subject',
+      from: 'admin@example.com\r\nReply-To: evil@attacker.com',
+    });
+
+    const sent = Mail.sent();
+    const lastSent = sent[sent.length - 1];
+    assert.ok(lastSent);
+    assert.strictEqual(lastSent.to, 'victim@example.com Bcc: evil@attacker.com');
+    assert.strictEqual(lastSent.subject, 'Welcome Subject: Injected Subject');
+    assert.ok(!lastSent.to.includes('\r'));
+    assert.ok(!lastSent.to.includes('\n'));
+    assert.ok(!lastSent.subject.includes('\r'));
+    assert.ok(!lastSent.subject.includes('\n'));
+  });
+
+  // 27. CLI Generator Identifier Validation
+  test('CLI assertValidName rejects path traversal attempts in generator names', async () => {
+    const { assertValidName } = await import('../src/cli/commands/make.js');
+
+    assert.throws(() => {
+      assertValidName('../../../etc/passwd');
+    }, /Invalid name or path traversal attempt/);
+
+    assert.throws(() => {
+      assertValidName('Admin\\Secrets');
+    }, /Invalid name or path traversal attempt/);
+
+    assert.strictEqual(assertValidName('Admin/UserController'), 'Admin/UserController');
+  });
 });

@@ -1,3 +1,15 @@
+function sanitizeUrl(url: string): string {
+  const clean = url.trim().replace(/["'<>]/g, '');
+  if (/^(?:javascript|vbscript|data):/i.test(clean)) {
+    return '#';
+  }
+  return clean;
+}
+
+function escapeAttr(str: string): string {
+  return str.replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * Lightweight, zero-dependency Markdown to HTML compiler for BirFramework Blade Engine
  */
@@ -87,10 +99,14 @@ export function parseMarkdown(markdown: string): string {
   });
 
   // 9. Images: ![alt](url)
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
+    return `<img src="${sanitizeUrl(url)}" alt="${escapeAttr(alt)}" />`;
+  });
 
   // 10. Links: [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+    return `<a href="${sanitizeUrl(url)}">${text}</a>`;
+  });
 
   // 11. Bold & Italics
   html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');

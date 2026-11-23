@@ -1,6 +1,12 @@
 import { dbConnection, type DatabaseConnection } from './connection.js';
 import type { DatabaseDialect } from './drivers/driver.js';
 
+function assertSafeIdentifier(name: string): void {
+  if (!name || !/^[a-zA-Z0-9_]+$/.test(name)) {
+    throw new Error(`[BirSchema] Unsafe SQL identifier detected: "${name}"`);
+  }
+}
+
 export class ColumnDefinition {
   public name: string;
   public type: string;
@@ -11,6 +17,7 @@ export class ColumnDefinition {
   public defaultValue?: any;
 
   constructor(name: string, type: string) {
+    assertSafeIdentifier(name);
     this.name = name;
     this.type = type;
   }
@@ -65,7 +72,9 @@ export class ColumnDefinition {
       parts.push('UNIQUE');
     }
     if (this.defaultValue !== undefined) {
-      const formatted = typeof this.defaultValue === 'string' ? `'${this.defaultValue}'` : this.defaultValue;
+      const formatted = typeof this.defaultValue === 'string'
+        ? `'${this.defaultValue.replace(/'/g, "''")}'`
+        : this.defaultValue;
       parts.push(`DEFAULT ${formatted}`);
     }
 
@@ -126,6 +135,7 @@ export class Blueprint {
   }
 
   public toSql(tableName: string, dialect: DatabaseDialect = 'sqlite'): string {
+    assertSafeIdentifier(tableName);
     const q = dialect === 'postgres' ? '"' : '`';
     const columnDefs = this.columns.map((c) => c.toSql(dialect)).join(',\n  ');
     return `CREATE TABLE IF NOT EXISTS ${q}${tableName}${q} (\n  ${columnDefs}\n);`;
@@ -136,6 +146,7 @@ export class SchemaBuilder {
   constructor(private connection: DatabaseConnection = dbConnection) {}
 
   public async create(tableName: string, callback: (table: Blueprint) => void): Promise<void> {
+    assertSafeIdentifier(tableName);
     const blueprint = new Blueprint();
     callback(blueprint);
     const sql = blueprint.toSql(tableName, this.connection.dialect);
@@ -143,6 +154,7 @@ export class SchemaBuilder {
   }
 
   public async dropIfExists(tableName: string): Promise<void> {
+    assertSafeIdentifier(tableName);
     const q = this.connection.dialect === 'postgres' ? '"' : '`';
     await this.connection.exec(`DROP TABLE IF EXISTS ${q}${tableName}${q};`);
   }

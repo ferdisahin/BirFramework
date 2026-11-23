@@ -8,9 +8,25 @@ function ensureDir(filePath: string) {
   }
 }
 
+export function assertValidName(name: string): string {
+  if (!name || typeof name !== 'string') {
+    throw new Error('Name must be a non-empty string.');
+  }
+  if (name.includes('..') || name.includes('\0') || !/^[a-zA-Z0-9_/]+$/.test(name)) {
+    throw new Error(`[BirCLI] Invalid name or path traversal attempt: "${name}"`);
+  }
+  return name.replace(/^[/\\]+/, '');
+}
+
 export function makeController(name: string) {
   if (!name) {
     console.error('\x1b[31m[Error]\x1b[0m You must specify a controller name. E.g.: bir make:controller UserController');
+    return;
+  }
+  try {
+    assertValidName(name);
+  } catch (err: any) {
+    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
     return;
   }
 

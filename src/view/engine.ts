@@ -422,9 +422,20 @@ export class ViewEngine {
         });
       }
 
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue;
+      }
+
       // Handle dynamic bound prop :prop="expr"
       if (key.startsWith(':')) {
         const propName = key.substring(1);
+        if (propName === '__proto__' || propName === 'constructor' || propName === 'prototype') {
+          continue;
+        }
+        if (DANGEROUS_EXPRESSIONS.test(String(val))) {
+          props[propName] = undefined;
+          continue;
+        }
         try {
           const fn = new Function(...Object.keys(scope), `return (${val});`);
           props[propName] = fn(...Object.values(scope));

@@ -132,6 +132,9 @@ export class Validator {
         if (ruleName === 'unique') {
           const [tableName, columnName = field] = argStr.split(',');
           if (tableName) {
+            if (!/^[a-zA-Z0-9_]+$/.test(tableName) || !/^[a-zA-Z0-9_]+$/.test(columnName)) {
+              throw new Error(`[BirValidation] Unsafe table or column identifier in unique rule: "${argStr}"`);
+            }
             const q = dbConnection.dialect === 'postgres' ? '"' : '`';
             const row = await dbConnection.queryOne(
               `SELECT ${q}${columnName}${q} FROM ${q}${tableName}${q} WHERE ${q}${columnName}${q} = ? LIMIT 1;`,

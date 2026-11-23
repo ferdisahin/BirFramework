@@ -13,11 +13,37 @@ export class Model<T = any> {
   public static primaryKey: string = 'id';
   public static timestamps: boolean = true;
   public static softDeletes: boolean = false;
+  public static fillable: string[] = [];
+  public static guarded: string[] = ['id'];
 
   private static _hooksMap = new Map<string, Array<(m: any) => Promise<void> | void>>();
 
   public attributes: Record<string, any> = {};
   public exists: boolean = false;
+
+  public static filterFillable(attributes: Record<string, any>): Record<string, any> {
+    const result: Record<string, any> = Object.create(null);
+    const fillableList = (this as any).fillable as string[] || [];
+    const guardedList = (this as any).guarded as string[] || [];
+
+    for (const [key, value] of Object.entries(attributes)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue;
+      }
+      if (fillableList.length > 0) {
+        if (fillableList.includes(key)) {
+          result[key] = value;
+        }
+      } else if (guardedList.length > 0) {
+        if (!guardedList.includes(key) && !guardedList.includes('*')) {
+          result[key] = value;
+        }
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
 
   private static getHookKey(event: string): string {
     return `${this.name || 'Model'}:${event}`;
@@ -166,9 +192,17 @@ export class Model<T = any> {
   }
 
   public static async create<M extends typeof Model>(this: M, data: Record<string, any>): Promise<InstanceType<M>> {
-    const instance = new this(data) as InstanceType<M>;
+    const safeData = this.filterFillable(data);
+    const instance = new this(safeData) as InstanceType<M>;
     await instance.save();
     return instance;
+  }
+
+  public fill(data: Record<string, any>): this {
+    const ctor = this.constructor as typeof Model;
+    const safeData = ctor.filterFillable(data);
+    Object.assign(this.attributes, safeData);
+    return this;
   }
 
   public static async paginate<M extends typeof Model>(

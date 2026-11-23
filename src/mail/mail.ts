@@ -1,12 +1,17 @@
 import { type MailDriver, LogMailDriver, ArrayMailDriver, type OutgoingEmail } from './drivers.js';
 import { Mailable } from './mailable.js';
 
+function sanitizeEmailHeader(str?: string): string {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/[\r\n]+/g, ' ').trim();
+}
+
 export class PendingMail {
   private recipient: string;
   private manager: MailManager;
 
   constructor(recipient: string, manager: MailManager) {
-    this.recipient = recipient;
+    this.recipient = sanitizeEmailHeader(recipient);
     this.manager = manager;
   }
 
@@ -18,8 +23,8 @@ export class PendingMail {
   public async raw(content: string, options: { subject: string; from?: string }): Promise<boolean> {
     const email: OutgoingEmail = {
       to: this.recipient,
-      from: options.from || process.env.MAIL_FROM_ADDRESS || 'noreply@example.com',
-      subject: options.subject,
+      from: sanitizeEmailHeader(options.from || process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'),
+      subject: sanitizeEmailHeader(options.subject),
       html: content,
       sentAt: new Date(),
     };
@@ -51,10 +56,10 @@ export class MailManager {
   public async send(mailable: Mailable): Promise<boolean> {
     const html = await mailable.content();
     const email: OutgoingEmail = {
-      to: mailable.toAddress,
-      from: mailable.fromAddress,
-      fromName: mailable.fromName,
-      subject: mailable.subjectText,
+      to: sanitizeEmailHeader(mailable.toAddress),
+      from: sanitizeEmailHeader(mailable.fromAddress),
+      fromName: sanitizeEmailHeader(mailable.fromName),
+      subject: sanitizeEmailHeader(mailable.subjectText),
       html,
       sentAt: new Date(),
     };
