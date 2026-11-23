@@ -29,8 +29,7 @@
   "files": [
     "dist",
     "bin",
-    "README.md",
-    "RULES.md"
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",

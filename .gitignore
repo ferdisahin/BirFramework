@@ -3,3 +3,18 @@ dist
 .DS_Store
 *.log
 .env
+
+# Storage, logs & databases
+storage
+*.sqlite
+*.sqlite3
+*.db
+
+# AI assistant rules & metadata
+.gemini
+.cursor
+.cursorrules
+.claude
+.idea
+.vscode
+RULES.md
