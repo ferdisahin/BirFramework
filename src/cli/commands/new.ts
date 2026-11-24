@@ -139,12 +139,20 @@ export async function createNewProject(
 
   if (isTailwind) {
     mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
-    writeFileSync(join(projectDir, 'resources/css/app.css'), '@import "tailwindcss";\n', 'utf-8');
+    writeFileSync(
+      join(projectDir, 'resources/css/app.css'),
+      '@import "tailwindcss";\n@source "../../views";\n@source "../../app";\n',
+      'utf-8'
+    );
   }
 
   if (isHotwire) {
     mkdirSync(join(projectDir, 'resources/js'), { recursive: true });
-    writeFileSync(join(projectDir, 'resources/js/app.js'), "import * as Turbo from '@hotwired/turbo';\n", 'utf-8');
+    const jsImports = [
+      isTailwind ? "import '../css/app.css';" : '',
+      "import * as Turbo from '@hotwired/turbo';",
+    ].filter(Boolean).join('\n') + '\n';
+    writeFileSync(join(projectDir, 'resources/js/app.js'), jsImports, 'utf-8');
   }
 
   // 1. package.json scripts & dependencies
@@ -186,7 +194,19 @@ export async function createNewProject(
     const viteConfigContent = `import { defineConfig } from 'vite';
 ${isTailwind ? "import tailwindcss from '@tailwindcss/vite';\n" : ''}
 export default defineConfig({
-  plugins: [${isTailwind ? 'tailwindcss()' : ''}],
+  plugins: [
+    ${isTailwind ? 'tailwindcss(),\n    ' : ''}{
+      name: 'bir-watch-views',
+      handleHotUpdate({ file, server }) {
+        if (file.includes('/views/') || file.includes('/app/')) {
+          server.ws.send({
+            type: 'full-reload',
+            path: '*',
+          });
+        }
+      },
+    },
+  ],
   build: {
     manifest: true,
     outDir: 'public/build',
@@ -196,6 +216,7 @@ export default defineConfig({
   },
   server: {
     origin: 'http://localhost:5173',
+    cors: true,
   },
 });
 `;
