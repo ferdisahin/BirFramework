@@ -322,6 +322,21 @@ export class Context {
     }
   }
 
+  /**
+   * Read the raw unparsed request body as a Buffer (for HMAC / Webhook signature verification)
+   */
+  public async rawBody(maxSize: number = DEFAULT_MAX_BODY_SIZE): Promise<Buffer> {
+    return this.readRawBodyBuffer(maxSize);
+  }
+
+  /**
+   * Read the raw unparsed request body as a UTF-8 string
+   */
+  public async rawBodyText(maxSize: number = DEFAULT_MAX_BODY_SIZE): Promise<string> {
+    const buf = await this.readRawBodyBuffer(maxSize);
+    return buf.toString('utf-8');
+  }
+
   private readRawBodyBuffer(maxSize: number = DEFAULT_MAX_BODY_SIZE): Promise<Buffer> {
     if (this._rawBodyBuffer) {
       return Promise.resolve(this._rawBodyBuffer);
