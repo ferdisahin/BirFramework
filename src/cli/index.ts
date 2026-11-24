@@ -293,8 +293,9 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
   }
 }
 
-// Auto-run if executed directly via CLI
-if (process.argv[1]?.includes('cli/index') || process.argv[1]?.endsWith('bir.js')) {
+// Auto-run if executed directly via CLI (not imported from bin/bir.js)
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('cli/index.ts') || process.argv[1].endsWith('cli/index.js'));
+if (isDirectRun) {
   runCLI().catch((err) => {
     console.error(err);
     process.exit(1);
