@@ -164,4 +164,45 @@ describe('BirFramework Native JSX / TSX Engine Tests', () => {
 
     await client.close();
   });
+
+  test('should resolve string view names to .tsx files via ctx.render("Home", props)', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { defaultViewEngine } = await import('../src/view/engine.js');
+
+    const tempViews = mkdtempSync(join(process.cwd(), '.tmp-jsx-views-'));
+    const origViewsDir = defaultViewEngine.getViewsDir();
+    defaultViewEngine.setViewsDir(tempViews);
+
+    let client: TestClient | undefined;
+    try {
+      mkdirSync(join(tempViews, 'admin'), { recursive: true });
+      writeFileSync(
+        join(tempViews, 'Home.tsx'),
+        `import { jsx } from '../src/jsx/index.js';\nexport default function Home(props: { name: string }) { return jsx('h1', { children: 'Hello ' + props.name }); }`,
+        'utf-8'
+      );
+      writeFileSync(
+        join(tempViews, 'admin/Dashboard.tsx'),
+        `import { jsx } from '../../src/jsx/index.js';\nexport default function Dashboard(props: { count: number }) { return jsx('div', { children: 'Count: ' + props.count }); }`,
+        'utf-8'
+      );
+
+      const app = new Application();
+      app.router.get('/home', (ctx) => ctx.render('Home', { name: 'Ferdi' }));
+      app.router.get('/admin', (ctx) => ctx.render('admin.Dashboard', { count: 42 }));
+
+      client = createTestClient(app);
+
+      const homeRes = await client.get('/home');
+      homeRes.assertOk().assertSee('<h1>Hello Ferdi</h1>');
+
+      const adminRes = await client.get('/admin');
+      adminRes.assertOk().assertSee('<div>Count: 42</div>');
+    } finally {
+      await client?.close();
+      defaultViewEngine.setViewsDir(origViewsDir);
+      rmSync(tempViews, { recursive: true, force: true });
+    }
+  });
 });

@@ -1,4 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { existsSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { defaultViewEngine, type ViewEngine } from '../view/engine.js';
 import { renderToHtml, renderToString, isValidElement } from '../jsx/index.js';
 import type { Session } from '../auth/session.js';
@@ -210,7 +213,7 @@ export class Context {
   }
 
   /**
-   * Render a view template (.bir) or JSX/TSX element with data
+   * Render a view template (.bir, .html, .tsx, .jsx) or JSX/TSX element with data
    */
   public render(templateOrJsx: any, data: Record<string, any> = {}, statusCode?: number): void | Promise<void> {
     if (isValidElement(templateOrJsx) || typeof templateOrJsx === 'function') {
@@ -226,8 +229,44 @@ export class Context {
       }
     }
 
+    if (typeof templateOrJsx === 'string') {
+      const jsxPath = this.resolveJsxViewPath(templateOrJsx);
+      if (jsxPath) {
+        return import(pathToFileURL(jsxPath).href).then(async (mod) => {
+          const Component = mod.default || Object.values(mod).find((v) => typeof v === 'function');
+          if (typeof Component !== 'function') {
+            throw new Error(`View component [${templateOrJsx}] does not export a default or named function component.`);
+          }
+          const html = await renderToHtml(Component(data));
+          this.html(html, statusCode);
+        });
+      }
+    }
+
     const compiled = defaultViewEngine.render(templateOrJsx, data);
     this.html(compiled, statusCode);
+  }
+
+  /**
+   * Resolve a string view name (e.g. 'Home', 'admin.Users', 'admin/Users') to a .tsx or .jsx file if present
+   */
+  private resolveJsxViewPath(viewName: string): string | null {
+    if (!viewName || viewName.includes('\0') || viewName.includes('..')) {
+      return null;
+    }
+
+    const viewsRoot = resolve(defaultViewEngine.getViewsDir() || resolve(process.cwd(), 'views'));
+    const stripped = viewName.replace(/\.(tsx|jsx)$/i, '');
+    const normalized = stripped.replace(/\./g, '/').replace(/^\/+/, '');
+
+    for (const ext of ['.tsx', '.jsx']) {
+      const candidate = resolve(viewsRoot, `${normalized}${ext}`);
+      if (candidate.startsWith(viewsRoot + sep) && existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
   }
 
   /**

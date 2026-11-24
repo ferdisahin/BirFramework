@@ -258,8 +258,10 @@ export default defineConfig({
     const tsconfig = {
       compilerOptions: {
         target: 'ESNext',
-        module: 'NodeNext',
-        moduleResolution: 'NodeNext',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        allowImportingTsExtensions: true,
+        noEmit: true,
         strict: true,
         esModuleInterop: true,
         skipLibCheck: true,
@@ -277,7 +279,7 @@ export default defineConfig({
   // 3. routes/web.[ts|js]
   const routesContent = isTS
     ? `import { Route, type Context } from 'birframework';
-import { HomeController } from '../app/controllers/HomeController.js';
+import { HomeController } from '@/app/controllers/HomeController';
 
 const homeController = new HomeController();
 
@@ -308,19 +310,24 @@ Route.get('/api/health', (ctx) => {
   const controllerContent = isJsx
     ? (isTS
       ? `import type { Context } from 'birframework';
-import Welcome from '../../views/Welcome.js';
 
 export class HomeController {
   public async index(ctx: Context) {
-    return ctx.render(<Welcome title="BirJS" version="${VERSION}" nodeVersion={process.version} />);
+    return ctx.render('Welcome', {
+      title: 'BirJS',
+      version: '${VERSION}',
+      nodeVersion: process.version,
+    });
   }
 }
 `
-      : `import Welcome from '../../views/Welcome.js';
-
-export class HomeController {
+      : `export class HomeController {
   async index(ctx) {
-    return ctx.render(<Welcome title="BirJS" version="${VERSION}" nodeVersion={process.version} />);
+    return ctx.render('Welcome', {
+      title: 'BirJS',
+      version: '${VERSION}',
+      nodeVersion: process.version,
+    });
   }
 }
 `)
@@ -347,8 +354,7 @@ export class HomeController {
   }
 }
 `);
-  const controllerExt = isJsx ? (isTS ? 'tsx' : 'jsx') : ext;
-  writeFileSync(join(projectDir, `app/controllers/HomeController.${controllerExt}`), controllerContent, 'utf-8');
+  writeFileSync(join(projectDir, `app/controllers/HomeController.${ext}`), controllerContent, 'utf-8');
 
   // 5. CSS files (always ensure public/css/app.css exists)
   const cssFileContent = isTailwind
@@ -569,7 +575,7 @@ export default function Welcome(props: { title: string; version: string; nodeVer
           <div className="${isTailwind ? 'mt-8 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4' : ''}">
             <div className="${isTailwind ? 'flex items-center gap-2.5 text-xs text-zinc-300 font-mono' : ''}">
               <span className="text-zinc-500 select-none">$</span>
-              <span>Edit <code className="${isTailwind ? 'text-white bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-mono text-[11px]' : ''}">app/controllers/HomeController.${jsxExt}</code> to get started</span>
+              <span>Edit <code className="${isTailwind ? 'text-white bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-mono text-[11px]' : ''}">app/controllers/HomeController.${ext}</code> to get started</span>
             </div>
             <a
               href="https://birjs.com/docs/installation"
