@@ -9,6 +9,7 @@ export interface NewProjectOptions {
   lang?: 'ts' | 'js';
   css?: 'tailwind' | 'css';
   turbo?: 'hotwire' | 'birturbo' | 'none';
+  view?: 'blade' | 'jsx';
 }
 
 async function askQuestion(query: string): Promise<string> {
@@ -30,7 +31,8 @@ export async function createNewProject(
   name?: string,
   lang?: 'ts' | 'js',
   css?: 'tailwind' | 'css',
-  turbo?: 'hotwire' | 'birturbo' | 'none'
+  turbo?: 'hotwire' | 'birturbo' | 'none',
+  view?: 'blade' | 'jsx'
 ) {
   // 1. Resolve project name
   if (!name && process.stdin.isTTY) {
@@ -94,16 +96,31 @@ export async function createNewProject(
     }
   }
 
+  // 5. Resolve view template engine (Blade default vs TSX/JSX)
+  if (!view) {
+    if (process.stdin.isTTY) {
+      console.log('\n\x1b[1mSelect view template engine:\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Blade (.bir) \x1b[90m(Default, Recommended - Laravel-style directives, slots & components)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m TSX / JSX \x1b[90m(Type-safe React-style functional components with zero client bundle)\x1b[0m');
+      const viewChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
+      view = viewChoice === '2' ? 'jsx' : 'blade';
+    } else {
+      view = 'blade';
+    }
+  }
+
   const isTS = lang === 'ts';
   const isTailwind = css === 'tailwind';
   const isHotwire = turbo === 'hotwire';
   const isBirTurbo = turbo === 'birturbo';
+  const isJsx = view === 'jsx';
   const ext = isTS ? 'ts' : 'js';
 
   console.log(`\n\x1b[36m🚀 Creating new BirJS project: ${name}\x1b[0m`);
-  console.log(`\x1b[90m  • Language:   ${isTS ? 'TypeScript (Strict)' : 'Pure JavaScript (ESM)'}\x1b[0m`);
-  console.log(`\x1b[90m  • Styling:    ${isTailwind ? 'Tailwind CSS (Default)' : 'Pure CSS'}\x1b[0m`);
-  console.log(`\x1b[90m  • Navigation: ${isHotwire ? 'Hotwire Turbo 8 (Official NPM)' : isBirTurbo ? 'BirTurbo (Built-in Zero-Dep)' : 'None (Traditional MPA)'}\x1b[0m\n`);
+  console.log(`\x1b[90m  • Language:    ${isTS ? 'TypeScript (Strict)' : 'Pure JavaScript (ESM)'}\x1b[0m`);
+  console.log(`\x1b[90m  • View Engine: ${isJsx ? 'TSX / JSX (React-style type-safe components)' : 'Blade (.bir / Laravel-style components)'}\x1b[0m`);
+  console.log(`\x1b[90m  • Styling:     ${isTailwind ? 'Tailwind CSS (Default)' : 'Pure CSS'}\x1b[0m`);
+  console.log(`\x1b[90m  • Navigation:  ${isHotwire ? 'Hotwire Turbo 8 (Official NPM)' : isBirTurbo ? 'BirTurbo (Built-in Zero-Dep)' : 'None (Traditional MPA)'}\x1b[0m\n`);
 
   // Create folder structure (Laravel-style)
   mkdirSync(join(projectDir, 'app/controllers'), { recursive: true });
@@ -217,6 +234,8 @@ export default defineConfig({
         strict: true,
         esModuleInterop: true,
         skipLibCheck: true,
+        jsx: 'react-jsx',
+        jsxImportSource: 'birframework',
       },
     };
     writeFileSync(join(projectDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2), 'utf-8');
@@ -253,8 +272,27 @@ Route.get('/api/health', (ctx) => {
   writeFileSync(join(projectDir, `routes/web.${ext}`), routesContent, 'utf-8');
 
   // 4. app/controllers/HomeController.[ts|js]
-  const controllerContent = isTS
-    ? `import type { Context } from 'birframework';
+  const controllerContent = isJsx
+    ? (isTS
+      ? `import type { Context } from 'birframework';
+import Welcome from '../../views/Welcome.js';
+
+export class HomeController {
+  public async index(ctx: Context) {
+    return ctx.render(<Welcome title="BirJS" version="${VERSION}" nodeVersion={process.version} />);
+  }
+}
+`
+      : `import Welcome from '../../views/Welcome.js';
+
+export class HomeController {
+  async index(ctx) {
+    return ctx.render(<Welcome title="BirJS" version="${VERSION}" nodeVersion={process.version} />);
+  }
+}
+`)
+    : (isTS
+      ? `import type { Context } from 'birframework';
 
 export class HomeController {
   public async index(ctx: Context) {
@@ -266,7 +304,7 @@ export class HomeController {
   }
 }
 `
-    : `export class HomeController {
+      : `export class HomeController {
   async index(ctx) {
     return ctx.render('welcome', {
       title: 'BirJS',
@@ -275,7 +313,7 @@ export class HomeController {
     });
   }
 }
-`;
+`);
   writeFileSync(join(projectDir, `app/controllers/HomeController.${ext}`), controllerContent, 'utf-8');
 
   // 5. CSS files (always ensure public/css/app.css exists)
@@ -419,19 +457,85 @@ footer {
 `;
   writeFileSync(join(projectDir, 'public/css/app.css'), cssFileContent, 'utf-8');
 
-  // 6. views/layouts/app.html
-  let headAssets = '';
-  if (isHotwire) {
-    headAssets = isTailwind
-      ? "@vite(['resources/css/app.css', 'resources/js/app.js'])"
-      : `<link rel="stylesheet" href="/css/app.css">\n  @vite(['resources/js/app.js'])`;
+  // 6 & 7. Views (JSX/TSX or Blade .html)
+  if (isJsx) {
+    const jsxExt = isTS ? 'tsx' : 'jsx';
+    const jsxLayout = `export function Layout({ title, children }: { title: string; children?: any }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{title} - BirJS</title>
+        <link rel="stylesheet" href="/css/app.css" />
+      </head>
+      <body className="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
+        {children}
+      </body>
+    </html>
+  );
+}
+`;
+    writeFileSync(join(projectDir, `views/layouts/Layout.${jsxExt}`), jsxLayout, 'utf-8');
+
+    const jsxWelcome = `import { Layout } from './layouts/Layout.js';
+
+export default function Welcome(props: { title: string; version: string; nodeVersion: string }) {
+  return (
+    <Layout title={props.title}>
+      <div className="${isTailwind ? 'max-w-4xl mx-auto px-6 py-12 flex-1 flex flex-col justify-between w-full' : 'wrapper'}">
+        <header className="${isTailwind ? 'flex items-center justify-between pb-8 border-b border-zinc-900' : ''}">
+          <div className="${isTailwind ? 'flex items-center gap-2 font-semibold tracking-tight text-white' : 'brand'}">
+            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+            <span>BirJS (BirFramework)</span>
+          </div>
+          <nav className="${isTailwind ? 'flex items-center gap-6 text-sm text-zinc-400' : ''}">
+            <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">GitHub</a>
+            <a href="https://birjs.com" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">Documentation</a>
+          </nav>
+        </header>
+
+        <main className="${isTailwind ? 'my-auto py-16' : ''}">
+          <div className="${isTailwind ? 'space-y-4 max-w-xl' : ''}">
+            <div className="${isTailwind ? 'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs bg-zinc-900 border border-zinc-800 text-zinc-300' : ''}">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>BirJS v{props.version} &bull; TSX Engine</span>
+            </div>
+            <h1 className="${isTailwind ? 'text-4xl sm:text-5xl font-extrabold tracking-tight text-white' : ''}">
+              Type-Safe JSX Server Components.
+            </h1>
+            <p className="${isTailwind ? 'text-zinc-400 text-base leading-relaxed' : 'lead'}">
+              React-style functional components rendered on the server with zero client bundle overhead and sub-millisecond V8 execution.
+            </p>
+          </div>
+        </main>
+
+        <footer className="${isTailwind ? 'pt-8 border-t border-zinc-900 flex items-center justify-between text-xs text-zinc-600' : ''}">
+          <div>Node.js {props.nodeVersion}</div>
+          <div>MIT Licensed</div>
+        </footer>
+      </div>
+    </Layout>
+  );
+}
+`;
+    writeFileSync(join(projectDir, `views/Welcome.${jsxExt}`), jsxWelcome, 'utf-8');
   } else {
-    headAssets = '<link rel="stylesheet" href="/css/app.css">';
-  }
+    // 6. views/layouts/app.html
+    let headAssets = '';
+    if (isHotwire) {
+      headAssets = isTailwind
+        ? "@vite(['resources/css/app.css', 'resources/js/app.js'])"
+        : `<link rel="stylesheet" href="/css/app.css">\n  @vite(['resources/js/app.js'])`;
+    } else {
+      headAssets = '<link rel="stylesheet" href="/css/app.css">';
+    }
 
-  const bodyScripts = isBirTurbo ? '\n  {!! bir_scripts() !!}' : '';
+    const bodyScripts = isBirTurbo ? '\n  {!! bir_scripts() !!}' : '';
 
-  const layoutContent = `<!DOCTYPE html>
+    const layoutContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -445,7 +549,7 @@ footer {
 </body>
 </html>
 `;
-  writeFileSync(join(projectDir, 'views/layouts/app.html'), layoutContent, 'utf-8');
+    writeFileSync(join(projectDir, 'views/layouts/app.html'), layoutContent, 'utf-8');
 
   // 7. views/welcome.html (Tailwind or Pure CSS)
   const welcomeContent = isTailwind
@@ -586,7 +690,8 @@ footer {
   </div>
 </x-layouts.app>
 `;
-  writeFileSync(join(projectDir, 'views/welcome.html'), welcomeContent, 'utf-8');
+    writeFileSync(join(projectDir, 'views/welcome.html'), welcomeContent, 'utf-8');
+  }
 
   // 8. app.[ts|js] (Entry Point)
   const appContent = `import { Application, logger } from 'birframework';

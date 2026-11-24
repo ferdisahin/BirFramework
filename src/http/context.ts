@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defaultViewEngine, type ViewEngine } from '../view/engine.js';
+import { renderToHtml, renderToString, isValidElement } from '../jsx/index.js';
 import type { Session } from '../auth/session.js';
 import { Validator, type ValidationRules, type FormRequest } from '../validation/index.js';
 import { UploadedFile } from './uploaded-file.js';
@@ -209,11 +210,32 @@ export class Context {
   }
 
   /**
-   * Render a view template with data (views/...)
+   * Render a view template (.bir) or JSX/TSX element with data
    */
-  public render(templateName: string, data: Record<string, any> = {}, statusCode?: number): void {
-    const compiled = defaultViewEngine.render(templateName, data);
+  public render(templateOrJsx: any, data: Record<string, any> = {}, statusCode?: number): void | Promise<void> {
+    if (isValidElement(templateOrJsx) || typeof templateOrJsx === 'function') {
+      const element = typeof templateOrJsx === 'function' ? templateOrJsx(data) : templateOrJsx;
+      const htmlPromise = renderToHtml(element);
+      if (htmlPromise instanceof Promise) {
+        return htmlPromise.then((html) => {
+          this.html(html, statusCode);
+        });
+      } else {
+        this.html(htmlPromise, statusCode);
+        return;
+      }
+    }
+
+    const compiled = defaultViewEngine.render(templateOrJsx, data);
     this.html(compiled, statusCode);
+  }
+
+  /**
+   * Explicit helper to render a JSX/TSX element or component directly to HTML response
+   */
+  public async renderJsx(element: any, statusCode?: number): Promise<void> {
+    const html = await renderToHtml(element);
+    this.html(html, statusCode);
   }
 
   /**

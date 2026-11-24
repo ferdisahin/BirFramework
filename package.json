@@ -1,6 +1,6 @@
 {
   "name": "birframework",
-  "version": "0.5.16",
+  "version": "0.5.17",
   "description": "Next-Gen Full-Stack Framework with Laravel DX and Modern TypeScript Type-Safety",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,6 +21,18 @@
     "./http": {
       "import": "./dist/http/index.js",
       "types": "./dist/http/index.d.ts"
+    },
+    "./jsx": {
+      "import": "./dist/jsx/index.js",
+      "types": "./dist/jsx/index.d.ts"
+    },
+    "./jsx-runtime": {
+      "import": "./dist/jsx/jsx-runtime.js",
+      "types": "./dist/jsx/jsx-runtime.d.ts"
+    },
+    "./jsx-dev-runtime": {
+      "import": "./dist/jsx/jsx-dev-runtime.js",
+      "types": "./dist/jsx/jsx-dev-runtime.d.ts"
     }
   },
   "bin": {

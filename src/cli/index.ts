@@ -241,7 +241,11 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       const hasNoTurbo = args.includes('--no-turbo') || args.includes('--none');
       const turbo = hasNoTurbo ? 'none' : hasBirTurbo ? 'birturbo' : hasHotwire ? 'hotwire' : undefined;
 
-      await createNewProject(name, lang, css, turbo);
+      const hasBlade = args.includes('--blade');
+      const hasJsx = args.includes('--jsx') || args.includes('--tsx');
+      const view = hasJsx ? 'jsx' : hasBlade ? 'blade' : undefined;
+
+      await createNewProject(name, lang, css, turbo, view);
       break;
     }
 
@@ -257,7 +261,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       '\x1b[0m');
       console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
-      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo]\x1b[0m Create a new project');
+      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo] [--blade|--jsx]\x1b[0m Create a new project');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
       console.log('  \x1b[32mtest [filter]\x1b[0m             Run application automated test suites');
       console.log('  \x1b[32mtinker\x1b[0m                    Start interactive REPL console with auto-loaded models');
