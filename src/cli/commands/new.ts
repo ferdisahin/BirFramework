@@ -112,6 +112,7 @@ export async function createNewProject(
   const isTS = lang === 'ts';
   const isTailwind = css === 'tailwind';
   const isHotwire = turbo === 'hotwire';
+  const hasVite = isHotwire;
   const isBirTurbo = turbo === 'birturbo';
   const isJsx = view === 'jsx';
   const ext = isTS ? 'ts' : 'js';
@@ -171,9 +172,9 @@ export async function createNewProject(
       devDependencies['@tailwindcss/vite'] = '^4.0.0';
     }
 
-    devScripts['dev'] = isTS
-      ? 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "vite" "npx tsx watch app.ts"'
-      : 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "vite" "node --watch app.js"';
+    devScripts['dev'] = 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "npm run dev:vite" "npm run dev:server"';
+    devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+    devScripts['dev:vite'] = 'vite';
     devScripts['build'] = 'vite build';
 
     const inputs: string[] = [];
@@ -208,6 +209,7 @@ export default defineConfig({
       devScripts['dev'] = isTS
         ? 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "npx tsx watch app.ts"'
         : 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "node --watch app.js"';
+      devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
       devScripts['build'] = 'npm run build:css';
     } else {
       devScripts['dev'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
@@ -461,14 +463,18 @@ footer {
   // 6 & 7. Views (JSX/TSX or Blade .html)
   if (isJsx) {
     const jsxExt = isTS ? 'tsx' : 'jsx';
-    const jsxLayout = `export function Layout({ title, children }: { title: string; children?: any }) {
+    const viteHead = hasVite
+      ? `        <Vite entries={[${isTailwind ? "'resources/css/app.css', " : ''}'resources/js/app.js']} />`
+      : '        <link rel="stylesheet" href="/css/app.css" />';
+
+    const jsxLayout = `${hasVite ? "import { Vite } from 'birframework/jsx';\n\n" : ''}export function Layout({ title, children }: { title: string; children?: any }) {
   return (
     <html lang="en">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{title} - BirJS</title>
-        <link rel="stylesheet" href="/css/app.css" />
+${viteHead}
       </head>
       <body className="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
         {children}
@@ -526,7 +532,7 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   } else {
     // 6. views/layouts/app.html
     let headAssets = '';
-    if (isHotwire) {
+    if (hasVite) {
       headAssets = isTailwind
         ? "@vite(['resources/css/app.css', 'resources/js/app.js'])"
         : `<link rel="stylesheet" href="/css/app.css">\n  @vite(['resources/js/app.js'])`;
