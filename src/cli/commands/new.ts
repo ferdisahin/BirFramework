@@ -265,6 +265,10 @@ export default defineConfig({
         skipLibCheck: true,
         jsx: 'react-jsx',
         jsxImportSource: 'birframework',
+        baseUrl: '.',
+        paths: {
+          '@/*': ['./*'],
+        },
       },
     };
     writeFileSync(join(projectDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2), 'utf-8');
@@ -921,7 +925,6 @@ export default function Welcome(props: { title: string; version: string; nodeVer
 
   // 8. app.[ts|js] (Entry Point)
   const appContent = `import { Application, logger } from 'birframework';
-import './routes/web.js';
 
 const app = new Application();
 app.use(logger());
@@ -930,6 +933,13 @@ const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, '0.0.0.0', (port) => {
   console.log(\`BirJS ready at http://localhost:\${port || PORT}\`);
 });
+
+// Load application routes safely
+try {
+  await import('./routes/web.js');
+} catch (err: any) {
+  app.catchBootError(err);
+}
 `;
   writeFileSync(join(projectDir, `app.${ext}`), appContent, 'utf-8');
 

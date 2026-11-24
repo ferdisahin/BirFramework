@@ -221,6 +221,17 @@ export class Application {
     }
   }
 
+  /**
+   * Catch and render startup/import exceptions via the interactive Ignition Debug Screen.
+   * Keeps the development server running when route or controller modules fail to load.
+   */
+  public catchBootError(err: any): void {
+    console.error('\x1b[31m[BirJS Boot Error]\x1b[0m', err?.message || err);
+    this.router.get('*', async (ctx) => {
+      await ErrorHandler.handleException(ctx, err);
+    });
+  }
+
   public port: number = 3000;
 
   public listen(port: number = 3000, host: string = '0.0.0.0', callback?: (port: number) => void): Server {

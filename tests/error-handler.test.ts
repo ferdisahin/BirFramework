@@ -113,4 +113,25 @@ describe('BirFramework ErrorHandler & Ignition Debug Screen Tests', () => {
       process.env.NODE_ENV = origEnv;
     }
   });
+
+  test('catchBootError should keep server running and render Ignition Screen on boot errors', async () => {
+    const brokenApp = new Application();
+    const brokenClient = createTestClient(brokenApp);
+
+    try {
+      const moduleNotFoundError = new Error("Cannot find module '/app/views/Home.tsx' imported from '/app/controllers/HomeController.tsx'");
+      brokenApp.catchBootError(moduleNotFoundError);
+
+      const res = await brokenClient.get('/', {
+        headers: { Accept: 'text/html' },
+      });
+
+      res.assertStatus(500)
+         .assertSee('Ignition Debug Screen')
+         .assertSee('Cannot find module')
+         .assertSee('HomeController.tsx');
+    } finally {
+      await brokenClient.close();
+    }
+  });
 });
