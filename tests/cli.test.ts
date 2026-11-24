@@ -180,7 +180,8 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       makeComponent('testmodal', true);
       assert.strictEqual(existsSync(folderBir), true);
       assert.strictEqual(existsSync(folderJs), true);
-      assert.match(readFileSync(folderJs, 'utf-8'), /\[BirComponent\] testmodal initialized/);
+      assert.match(readFileSync(folderJs, 'utf-8'), /export default function/);
+      assert.match(readFileSync(folderJs, 'utf-8'), /el\.querySelector/);
     } finally {
       if (existsSync(flatFile)) rmSync(flatFile, { force: true });
       if (existsSync(folderDir)) rmSync(folderDir, { recursive: true, force: true });

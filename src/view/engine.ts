@@ -371,7 +371,38 @@ export class ViewEngine {
       // 8. Top-level injection of companion scripts from rendered components (placed before </body> or appended)
       if (this.compileDepth === 1 && this.componentScriptsToInject.size > 0) {
         const scriptsHtml = Array.from(this.componentScriptsToInject.entries())
-          .map(([name, script]) => `<script data-bir-component="${name}">\n${script}\n</script>`)
+          .map(([name, script]) => {
+            const trimmedScript = script.trim();
+            const hasExportDefault = /export\s+default\s+/.test(trimmedScript);
+
+            if (hasExportDefault) {
+              const cleanBody = trimmedScript.replace(/export\s+default\s+/, '');
+              return `<script data-bir-component="${name}">
+(function() {
+  const init = (${cleanBody});
+  if (typeof init === 'function') {
+    function mount() {
+      document.querySelectorAll('[data-bir-component="${name}"]').forEach(function(el) {
+        if (!el.__bir_init__) {
+          el.__bir_init__ = true;
+          try { init(el); } catch (e) { console.error('[BirComponent] Error in ${name}:', e); }
+        }
+      });
+    }
+    mount();
+    document.addEventListener('turbo:load', mount);
+    document.addEventListener('DOMContentLoaded', mount);
+  }
+})();
+</script>`;
+            }
+
+            return `<script data-bir-component="${name}">
+(function() {
+  ${trimmedScript}
+})();
+</script>`;
+          })
           .join('\n');
 
         if (output.includes('</body>')) {
@@ -416,12 +447,20 @@ export class ViewEngine {
           __rawSlots: ['slot', '$slot', ...Object.keys(slots.namedSlots)],
         };
 
+        let componentTemplate = this.loadTemplate(componentName);
         const companionScript = this.findCompanionScript(componentName);
         if (companionScript) {
-          this.componentScriptsToInject.set(componentName, companionScript);
+          const compTag = componentName.replace(/\//g, '.');
+          this.componentScriptsToInject.set(compTag, companionScript);
+
+          if (!componentTemplate.includes('data-bir-component=')) {
+            componentTemplate = componentTemplate.replace(
+              /^(\s*<[a-zA-Z0-9_-]+)/,
+              `$1 data-bir-component="${compTag}"`
+            );
+          }
         }
 
-        const componentTemplate = this.loadTemplate(componentName);
         return this.compile(componentTemplate, componentScope);
       });
     }
@@ -436,12 +475,21 @@ export class ViewEngine {
         $slot: '',
       };
 
+      let componentTemplate = this.loadTemplate(componentName);
       const companionScript = this.findCompanionScript(componentName);
       if (companionScript) {
-        this.componentScriptsToInject.set(componentName, companionScript);
+        const compTag = componentName.replace(/\//g, '.');
+        this.componentScriptsToInject.set(compTag, companionScript);
+
+        if (!componentTemplate.includes('data-bir-component=')) {
+          componentTemplate = componentTemplate.replace(
+            /^(\s*<[a-zA-Z0-9_-]+)/,
+            `$1 data-bir-component="${compTag}"`
+          );
+        }
       }
 
-      const componentTemplate = this.loadTemplate(componentName);
+      return this.compile(componentTemplate, componentScope);
       return this.compile(componentTemplate, componentScope);
     });
 

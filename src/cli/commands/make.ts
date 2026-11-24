@@ -552,7 +552,11 @@ export function makeComponent(name: string, withJs: boolean = false) {
 `;
 
     const scriptContent = `// ${baseName}.js - Companion script for <x-${cleanName.replace(/\//g, '.')}>
-console.log('[BirComponent] ${baseName} initialized');
+export default function (el: HTMLElement) {
+  // 'el' is this specific component instance's root DOM element.
+  // Use el.querySelector() instead of document.querySelector() to prevent DOM collisions!
+  console.log('[BirComponent] ${baseName} mounted:', el);
+}
 `;
 
     writeFileSync(templatePath, templateContent, 'utf-8');

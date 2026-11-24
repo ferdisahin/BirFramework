@@ -197,8 +197,36 @@ describe('BirFramework Modern Blade Component & Slot Tests', () => {
       assert.ok(rendered.includes('window.myModalLoaded = true;'));
 
       // Verify companion script was only injected ONCE despite 2 component invocations
-      const scriptMatches = rendered.match(/data-bir-component="mymodal"/g);
+      const scriptMatches = rendered.match(/<script data-bir-component="mymodal"/g);
       assert.strictEqual(scriptMatches?.length, 1, 'Companion JS must be injected only once (deduplicated)');
+    } finally {
+      rmSync(compDir, { recursive: true, force: true });
+    }
+  });
+
+  test('should mount scoped export default companion scripts per component instance', () => {
+    const compDir = resolve(process.cwd(), 'views/components/counter');
+    mkdirSync(compDir, { recursive: true });
+    writeFileSync(resolve(compDir, 'counter.bir'), '<div class="counter-box"><button class="btn">+</button></div>', 'utf-8');
+    writeFileSync(resolve(compDir, 'counter.js'), `export default function(el) {
+      const a = el.querySelector('.btn');
+      a.textContent = 'Active';
+    }`, 'utf-8');
+
+    try {
+      const template = `
+        <body>
+          <x-counter id="c1" />
+          <x-counter id="c2" />
+        </body>
+      `;
+
+      const rendered = defaultViewEngine.compile(template);
+      assert.ok(rendered.includes('data-bir-component="counter"'));
+      assert.ok(rendered.includes('init(el)'));
+      assert.ok(rendered.includes('document.querySelectorAll(\'[data-bir-component="counter"]\')'));
+      // Script placed before </body>
+      assert.ok(rendered.indexOf('<script data-bir-component="counter">') < rendered.indexOf('</body>'));
     } finally {
       rmSync(compDir, { recursive: true, force: true });
     }
