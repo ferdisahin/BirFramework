@@ -77,16 +77,19 @@ describe('BirFramework Security Fixes Verification Tests', () => {
   });
 
   // 3. Session Security
-  test('CookieManager in production requires APP_KEY or secret', () => {
+  test('CookieManager in production falls back to ephemeral secure key with warning when APP_KEY is missing', () => {
     const originalEnv = process.env.NODE_ENV;
     const originalKey = process.env.APP_KEY;
     process.env.NODE_ENV = 'production';
     delete process.env.APP_KEY;
 
     try {
-      assert.throws(() => {
-        new CookieManager();
-      }, /Production environment requires APP_KEY/);
+      const manager = new CookieManager();
+      assert.strictEqual(manager.isEphemeral, true);
+      // Can sign and unsign correctly
+      const signed = manager.sign('user_123');
+      const unsigned = manager.unsign(signed);
+      assert.strictEqual(unsigned, 'user_123');
     } finally {
       process.env.NODE_ENV = originalEnv;
       if (originalKey) process.env.APP_KEY = originalKey;

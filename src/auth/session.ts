@@ -125,18 +125,35 @@ export function saveSession(session: Session, maxAgeSeconds: number, maxSessions
   sessionStore.set(session.id, session);
 }
 
+let ephemeralProductionKey: string | null = null;
+let ephemeralKeyWarned = false;
+
+function getEphemeralProductionKey(): string {
+  if (!ephemeralProductionKey) {
+    ephemeralProductionKey = randomBytes(32).toString('hex');
+  }
+  if (!ephemeralKeyWarned) {
+    ephemeralKeyWarned = true;
+    console.warn(
+      '\x1b[33m[BirSecurity] WARNING: APP_KEY is not set in production. A temporary runtime-generated secret is being used. Sessions will invalidate across serverless cold starts or restarts. Please configure APP_KEY in your environment variables.\x1b[0m'
+    );
+  }
+  return ephemeralProductionKey;
+}
+
 export class CookieManager {
   private secret: string;
+  public readonly isEphemeral: boolean = false;
 
   constructor(secret?: string) {
     const candidate = secret || process.env.APP_KEY;
     if (!candidate) {
       if (process.env.NODE_ENV === 'production') {
-        throw new Error(
-          '[BirSecurity] Production environment requires APP_KEY environment variable or SessionOptions.secret to be configured.'
-        );
+        this.secret = getEphemeralProductionKey();
+        this.isEphemeral = true;
+      } else {
+        this.secret = 'bir-framework-dev-fallback-key-32-chars-min';
       }
-      this.secret = 'bir-framework-dev-fallback-key-32-chars-min';
     } else {
       this.secret = candidate;
     }
@@ -202,7 +219,19 @@ export class CookieManager {
   }
 }
 
-export const cookieManager = new CookieManager();
+let _defaultCookieManager: CookieManager | null = null;
+export function getDefaultCookieManager(): CookieManager {
+  if (!_defaultCookieManager) {
+    _defaultCookieManager = new CookieManager();
+  }
+  return _defaultCookieManager;
+}
+
+export const cookieManager: CookieManager = new Proxy({} as CookieManager, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getDefaultCookieManager(), prop, receiver);
+  }
+});
 
 let lastSweepTime = Date.now();
 
@@ -213,7 +242,7 @@ export function sessionMiddleware(options: SessionOptions = {}): Middleware {
   const cookieName = options.cookieName || 'bir_session';
   const maxAge = options.maxAge || 86400 * 7; // 7 days
   const maxSessions = options.maxSessions || DEFAULT_MAX_SESSIONS;
-  const manager = options.secret ? new CookieManager(options.secret) : cookieManager;
+  const manager = options.secret ? new CookieManager(options.secret) : getDefaultCookieManager();
 
   return async (ctx: Context, next) => {
     // Periodically sweep expired sessions from memory (every 10 minutes)
