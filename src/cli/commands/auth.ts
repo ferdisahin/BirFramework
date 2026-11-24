@@ -9,8 +9,13 @@ function ensureDir(filePath: string) {
   }
 }
 
-export function scaffoldAuth() {
+export function scaffoldAuth(options: { jsx?: boolean } = {}) {
   console.log('\x1b[36m⚡ Scaffolding full-stack authentication system (Laravel Breeze style)...\x1b[0m');
+
+  const isJsxProject =
+    options.jsx ??
+    (existsSync(resolve(process.cwd(), 'views/Welcome.tsx')) ||
+      existsSync(resolve(process.cwd(), 'views/layouts/Layout.tsx')));
 
   // 1. Generate User model
   makeModel('User', false);
@@ -147,9 +152,158 @@ export class AuthController {
   writeFileSync(controllerPath, controllerTemplate, 'utf-8');
   console.log(`\x1b[32m✔ Controller created:\x1b[0m app/controllers/AuthController.ts`);
 
-  // 4. Views: login, register, dashboard
-  const loginViewPath = resolve(process.cwd(), 'views/auth/login.html');
-  ensureDir(loginViewPath);
+  // 4. Views: login, register, dashboard (TSX or Blade .html)
+  if (isJsxProject) {
+    const loginTsxPath = resolve(process.cwd(), 'views/auth/login.tsx');
+    ensureDir(loginTsxPath);
+    writeFileSync(
+      loginTsxPath,
+      `import { Layout } from '../layouts/Layout.js';
+import { Csrf } from 'birframework/jsx';
+
+export default function Login(props: { error?: string }) {
+  return (
+    <Layout title="Sign In">
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-xl p-8">
+          <div className="mb-6 text-center">
+            <h1 className="text-xl font-bold tracking-tight text-white">Welcome back</h1>
+            <p className="text-xs text-zinc-500 mt-1">Sign in to your account to continue</p>
+          </div>
+          {props.error && (
+            <div className="mb-5 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+              {props.error}
+            </div>
+          )}
+          <form method="POST" action="/login" className="space-y-4">
+            <Csrf />
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Email address</label>
+              <input type="email" name="email" required placeholder="you@example.com" className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-600 px-3.5 py-2 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Password</label>
+              <input type="password" name="password" required placeholder="••••••••" className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-600 px-3.5 py-2 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none transition" />
+            </div>
+            <button type="submit" className="w-full bg-white hover:bg-zinc-200 text-zinc-950 font-medium py-2.5 px-4 rounded-lg text-xs transition cursor-pointer">
+              Sign In
+            </button>
+          </form>
+          <div className="mt-6 pt-5 border-t border-zinc-900 text-center text-xs text-zinc-500">
+            Don't have an account? <a href="/register" className="text-white font-medium hover:underline ml-1">Sign up</a>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+`,
+      'utf-8'
+    );
+    console.log(`\x1b[32m✔ View created:\x1b[0m views/auth/login.tsx`);
+
+    const registerTsxPath = resolve(process.cwd(), 'views/auth/register.tsx');
+    writeFileSync(
+      registerTsxPath,
+      `import { Layout } from '../layouts/Layout.js';
+import { Csrf } from 'birframework/jsx';
+
+export default function Register(props: { error?: string }) {
+  return (
+    <Layout title="Create Account">
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-xl p-8">
+          <div className="mb-6 text-center">
+            <h1 className="text-xl font-bold tracking-tight text-white">Create an account</h1>
+            <p className="text-xs text-zinc-500 mt-1">Get started with your new application</p>
+          </div>
+          {props.error && (
+            <div className="mb-5 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+              {props.error}
+            </div>
+          )}
+          <form method="POST" action="/register" className="space-y-4">
+            <Csrf />
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Full name</label>
+              <input type="text" name="name" required placeholder="Jane Doe" className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-600 px-3.5 py-2 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Email address</label>
+              <input type="email" name="email" required placeholder="you@example.com" className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-600 px-3.5 py-2 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Password</label>
+              <input type="password" name="password" required minLength={6} placeholder="••••••••" className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-600 px-3.5 py-2 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none transition" />
+            </div>
+            <button type="submit" className="w-full bg-white hover:bg-zinc-200 text-zinc-950 font-medium py-2.5 px-4 rounded-lg text-xs transition cursor-pointer">
+              Create Account
+            </button>
+          </form>
+          <div className="mt-6 pt-5 border-t border-zinc-900 text-center text-xs text-zinc-500">
+            Already have an account? <a href="/login" className="text-white font-medium hover:underline ml-1">Sign in</a>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+`,
+      'utf-8'
+    );
+    console.log(`\x1b[32m✔ View created:\x1b[0m views/auth/register.tsx`);
+
+    const dashboardTsxPath = resolve(process.cwd(), 'views/dashboard.tsx');
+    writeFileSync(
+      dashboardTsxPath,
+      `import { Layout } from './layouts/Layout.js';
+import { Csrf } from 'birframework/jsx';
+
+export default function Dashboard(props: { user: { id: number; name: string; email: string; role?: string } }) {
+  return (
+    <Layout title="Dashboard">
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        <div className="flex items-center justify-between pb-6 border-b border-zinc-900">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
+            <p className="text-xs text-zinc-500 mt-1">Logged in as <span className="font-medium text-white">{props.user.email}</span></p>
+          </div>
+          <form method="POST" action="/logout">
+            <Csrf />
+            <button type="submit" className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 px-3.5 py-1.5 rounded-md text-xs font-medium transition cursor-pointer">
+              Sign Out
+            </button>
+          </form>
+        </div>
+        <div className="mt-8 bg-zinc-950 border border-zinc-900 rounded-xl p-6">
+          <h2 className="text-sm font-semibold text-white mb-4">Account Overview</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+              <div className="text-zinc-500 text-[11px] mb-1">User ID</div>
+              <div className="font-semibold text-white">#{props.user.id}</div>
+            </div>
+            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+              <div className="text-zinc-500 text-[11px] mb-1">Name</div>
+              <div className="font-semibold text-white">{props.user.name}</div>
+            </div>
+            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+              <div className="text-zinc-500 text-[11px] mb-1">Role</div>
+              <div className="font-semibold text-emerald-400 uppercase tracking-wider text-[11px]">{props.user.role || 'USER'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+`,
+      'utf-8'
+    );
+    console.log(`\x1b[32m✔ View created:\x1b[0m views/dashboard.tsx`);
+  } else {
+    // 4. Blade Views: login, register, dashboard
+    const loginViewPath = resolve(process.cwd(), 'views/auth/login.html');
+    ensureDir(loginViewPath);
 
   const loginViewTemplate = `<x-layouts.app title="Sign In">
   <div class="min-h-[70vh] flex items-center justify-center px-4 py-12">
@@ -318,6 +472,7 @@ export class AuthController {
 `;
   writeFileSync(dashboardViewPath, dashboardViewTemplate, 'utf-8');
   console.log(`\x1b[32m✔ View created:\x1b[0m views/dashboard.html`);
+  }
 
   // 5. Append routes to routes/web.ts if exists and not already appended
   const routesFile = existsSync(resolve(process.cwd(), 'routes/web.ts'))

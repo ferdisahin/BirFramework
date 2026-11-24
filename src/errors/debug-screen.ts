@@ -12,6 +12,55 @@ function escapeHtml(str: string): string {
 }
 
 export class DebugScreen {
+  private static getSolutionHint(err: any): { title: string; description: string; code?: string } | null {
+    const msg = String(err?.message || '');
+    const code = String(err?.code || '');
+
+    if (code === 'ERR_MODULE_NOT_FOUND' || msg.includes('Cannot find module')) {
+      if (msg.includes('/views/') || msg.includes('\\views\\')) {
+        return {
+          title: 'View Import Path Issue',
+          description:
+            'In BirFramework, the views/ directory is at the project root (not inside app/). Instead of relative ../views paths, use ctx.render() with a string name or the @/ path alias.',
+          code: "return ctx.render('Home', { title: 'BirJS' }); // or import Home from '@/views/Home';",
+        };
+      }
+      return {
+        title: 'Module Not Found',
+        description:
+          'Verify that the imported file path exists and check your tsconfig.json path aliases (@/*).',
+      };
+    }
+
+    if (msg.includes('[BirView] View template not found')) {
+      return {
+        title: 'View Template Not Found',
+        description:
+          'Ensure the view file exists inside the root views/ directory (.tsx, .jsx, .bir, or .html), or scaffold it with the CLI.',
+        code: 'npx bir make:view Home',
+      };
+    }
+
+    if (msg.includes('no such table') || msg.includes('SQLITE_ERROR')) {
+      return {
+        title: 'Database Table Missing',
+        description:
+          'A queried database table does not exist yet. Run your pending migrations to initialize the schema.',
+        code: 'npx bir migrate',
+      };
+    }
+
+    if (msg.includes('Session middleware is required')) {
+      return {
+        title: 'Session Middleware Not Active',
+        description:
+          'CSRF protection requires an active session. Register sessionMiddleware() before csrf() in your middleware pipeline.',
+      };
+    }
+
+    return null;
+  }
+
   public static render(ctx: Context, err: any): string {
     const errorName = err?.name || 'Error';
     const errorMessage = err?.message || 'An unexpected error occurred.';
@@ -26,6 +75,7 @@ export class DebugScreen {
     const safePath = escapeHtml(ctx.path);
     const safeName = escapeHtml(errorName);
     const safeMessage = escapeHtml(errorMessage);
+    const solution = this.getSolutionHint(err);
 
     const codeSnippetHtml = topFrame?.codeSnippet
       ? topFrame.codeSnippet
@@ -124,6 +174,26 @@ export class DebugScreen {
         : ''
     }
   </div>
+
+  <!-- Solution Hint Banner -->
+  ${
+    solution
+      ? `
+  <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.28); border-radius: 14px; padding: 18px 22px; margin-bottom: 24px;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #34d399; margin-bottom: 6px;">
+      Possible Solution &bull; ${escapeHtml(solution.title)}
+    </div>
+    <p style="font-size: 13px; color: #d4d4d8; line-height: 1.5; margin-bottom: ${solution.code ? '10px' : '0'};">
+      ${escapeHtml(solution.description)}
+    </p>
+    ${
+      solution.code
+        ? `<pre style="background: #09090b; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; font-family: ui-monospace, monospace; font-size: 12px; color: #6ee7b7; overflow-x: auto;">${escapeHtml(solution.code)}</pre>`
+        : ''
+    }
+  </div>`
+      : ''
+  }
 
   <!-- Code Preview Window -->
   ${

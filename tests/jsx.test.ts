@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { jsx, jsxs, Fragment, h, raw, renderToString, renderToHtml, isValidElement } from '../src/jsx/index.js';
+import { jsx, jsxs, Fragment, h, raw, renderToString, renderToHtml, isValidElement, Csrf, Method, ErrorMessage, Flash } from '../src/jsx/index.js';
 import { Application } from '../src/core/application.js';
 import { createTestClient } from '../src/testing/test-client.js';
 
@@ -204,5 +204,32 @@ describe('BirFramework Native JSX / TSX Engine Tests', () => {
       defaultViewEngine.setViewsDir(origViewsDir);
       rmSync(tempViews, { recursive: true, force: true });
     }
+  });
+
+  test('Csrf, Method, ErrorMessage, and Flash components work with active request context', async () => {
+    const app = new Application();
+    app.router.get('/form', (ctx) => {
+      ctx.session?.flash('errors', { email: ['The email field is required.'] });
+      ctx.session?.flash('success', 'Profile updated!');
+      return ctx.render(
+        jsx('form', {
+          children: [
+            jsx(Csrf, {}),
+            jsx(Method, { method: 'PUT' }),
+            jsx(ErrorMessage, { field: 'email' }),
+            jsx(Flash, { type: 'success' }),
+          ],
+        })
+      );
+    });
+
+    const client = createTestClient(app);
+    const res = await client.get('/form');
+    res.assertOk()
+       .assertSee('name="_token"')
+       .assertSee('name="_method" value="PUT"')
+       .assertSee('The email field is required.')
+       .assertSee('Profile updated!');
+    await client.close();
   });
 });

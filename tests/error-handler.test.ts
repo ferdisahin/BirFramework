@@ -128,10 +128,30 @@ describe('BirFramework ErrorHandler & Ignition Debug Screen Tests', () => {
 
       res.assertStatus(500)
          .assertSee('Ignition Debug Screen')
+         .assertSee('Possible Solution')
+         .assertSee('View Import Path Issue')
          .assertSee('Cannot find module')
          .assertSee('HomeController.tsx');
     } finally {
       await brokenClient.close();
+    }
+  });
+
+  test('throttle middleware should allow up to max requests and return 429 afterwards', async () => {
+    const { throttle, rateLimiter } = await import('../src/security/rate_limiter.js');
+    rateLimiter.clear();
+
+    const limitedApp = new Application();
+    limitedApp.router.get('/limited', (ctx) => ctx.json({ ok: true })).middleware(throttle(2, 1));
+    const limitedClient = createTestClient(limitedApp);
+
+    try {
+      (await limitedClient.get('/limited')).assertOk();
+      (await limitedClient.get('/limited')).assertOk();
+      (await limitedClient.get('/limited')).assertStatus(429);
+    } finally {
+      await limitedClient.close();
+      rateLimiter.clear();
     }
   });
 });

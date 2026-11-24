@@ -1,4 +1,4 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent, makeView } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
@@ -11,7 +11,8 @@ import { Schedule } from '../schedule/schedule.js';
 import { SeederRunner } from '../database/seeder.js';
 import { VERSION } from '../version.js';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 
 export async function runCLI(args: string[] = process.argv.slice(2)) {
@@ -82,8 +83,16 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
     }
 
     case 'make:model': {
-      const withMigration = args.includes('-m') || args.includes('--migration');
-      makeModel(args[1] || '', withMigration);
+      const shortFlags = args.filter((a) => a.startsWith('-') && !a.startsWith('--')).join('');
+      const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
+      makeModel(name, {
+        migration: args.includes('--migration') || shortFlags.includes('m'),
+        controller: args.includes('--controller') || shortFlags.includes('c'),
+        resource: args.includes('--resource') || shortFlags.includes('r'),
+        factory: args.includes('--factory') || shortFlags.includes('f'),
+        seeder: args.includes('--seeder') || shortFlags.includes('s'),
+        all: args.includes('--all') || shortFlags.includes('a'),
+      });
       break;
     }
 
@@ -135,8 +144,16 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'make:component': {
       const withJs = args.includes('-j') || args.includes('--js');
+      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
       const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
-      makeComponent(name, withJs);
+      makeComponent(name, withJs, jsx);
+      break;
+    }
+
+    case 'make:view': {
+      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
+      const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
+      makeView(name, jsx);
       break;
     }
 
@@ -197,7 +214,43 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'make:auth':
     case 'auth:scaffold': {
-      scaffoldAuth();
+      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
+      scaffoldAuth({ jsx });
+      break;
+    }
+
+    case 'down': {
+      const msgArg = args.find((a) => a.startsWith('--message='));
+      const retryArg = args.find((a) => a.startsWith('--retry='));
+      const message = msgArg ? msgArg.slice('--message='.length) : 'Application is currently undergoing scheduled maintenance.';
+      const retry = retryArg ? Number(retryArg.slice('--retry='.length)) || 60 : 60;
+      const downDir = resolve(process.cwd(), 'storage/framework');
+      mkdirSync(downDir, { recursive: true });
+      writeFileSync(resolve(downDir, 'down.json'), JSON.stringify({ time: Date.now(), message, retry }, null, 2), 'utf-8');
+      console.log('\x1b[33m✔ Application is now in maintenance mode.\x1b[0m');
+      break;
+    }
+
+    case 'up': {
+      const downFile = resolve(process.cwd(), 'storage/framework/down.json');
+      if (existsSync(downFile)) {
+        rmSync(downFile, { force: true });
+      }
+      console.log('\x1b[32m✔ Application is now live.\x1b[0m');
+      break;
+    }
+
+    case 'key:generate': {
+      const key = `base64:${randomBytes(32).toString('base64')}`;
+      const envPath = resolve(process.cwd(), '.env');
+      let envContent = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
+      if (/^APP_KEY=.*$/m.test(envContent)) {
+        envContent = envContent.replace(/^APP_KEY=.*$/m, `APP_KEY=${key}`);
+      } else {
+        envContent = `${envContent.trimEnd()}${envContent ? '\n' : ''}APP_KEY=${key}\n`;
+      }
+      writeFileSync(envPath, envContent, 'utf-8');
+      console.log(`\x1b[32m✔ Application key set successfully:\x1b[0m ${key}`);
       break;
     }
 

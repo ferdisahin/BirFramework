@@ -110,11 +110,31 @@ export const ${cleanName}: Middleware = async (ctx, next) => {
   console.log(`\x1b[32m✔ Middleware created successfully:\x1b[0m app/middlewares/${cleanName}.ts`);
 }
 
-export function makeModel(name: string, withMigration: boolean = false) {
+export interface MakeModelOptions {
+  migration?: boolean;
+  controller?: boolean;
+  resource?: boolean;
+  factory?: boolean;
+  seeder?: boolean;
+  all?: boolean;
+}
+
+export function makeModel(name: string, optionsOrMigration: boolean | MakeModelOptions = false) {
   if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify a model name. E.g.: bir make:model User');
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a model name. E.g.: bir make:model User [-m] [-c] [-r] [-f] [-s] [--all]');
     return;
   }
+
+  const opts: MakeModelOptions =
+    typeof optionsOrMigration === 'boolean'
+      ? { migration: optionsOrMigration }
+      : optionsOrMigration;
+
+  const withAll = Boolean(opts.all);
+  const withMigration = Boolean(opts.migration || withAll);
+  const withFactory = Boolean(opts.factory || withAll);
+  const withSeeder = Boolean(opts.seeder || withAll);
+  const withController = Boolean(opts.controller || opts.resource || withAll);
 
   const cleanName = name.charAt(0).toUpperCase() + name.slice(1);
   const targetPath = resolve(process.cwd(), 'app/models', `${cleanName}.ts`);
@@ -142,6 +162,15 @@ export class ${cleanName} extends Model {
 
   if (withMigration) {
     makeMigration(`create_${tableName}_table`);
+  }
+  if (withFactory) {
+    makeFactory(`${cleanName}Factory`);
+  }
+  if (withSeeder) {
+    makeSeeder(`${cleanName}Seeder`);
+  }
+  if (withController) {
+    makeController(`${cleanName}Controller`);
   }
 }
 
@@ -515,9 +544,16 @@ export default ${cleanName};
   console.log(`\x1b[32m✔ Service Provider created successfully:\x1b[0m app/providers/${cleanName}.ts`);
 }
 
-export function makeComponent(name: string, withJs: boolean = false) {
+function isJsxProject(): boolean {
+  return (
+    existsSync(resolve(process.cwd(), 'views/Welcome.tsx')) ||
+    existsSync(resolve(process.cwd(), 'views/layouts/Layout.tsx'))
+  );
+}
+
+export function makeComponent(name: string, withJs: boolean = false, jsx?: boolean) {
   if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify a component name. E.g.: bir make:component modal [-j|--js]');
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a component name. E.g.: bir make:component modal [-j|--js] [--jsx]');
     return;
   }
   try {
@@ -527,8 +563,43 @@ export function makeComponent(name: string, withJs: boolean = false) {
     return;
   }
 
-  const cleanName = name.replace(/\.bir$/, '').replace(/\.html$/, '');
+  const useJsx = jsx ?? isJsxProject();
+  const cleanName = name.replace(/\.(bir|html|tsx|jsx)$/, '');
   const baseName = cleanName.split('/').pop() || cleanName;
+
+  if (useJsx) {
+    const pascalName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+    const parentParts = cleanName.split('/');
+    parentParts[parentParts.length - 1] = pascalName;
+    const componentPath = parentParts.join('/');
+    const targetPath = resolve(process.cwd(), 'views/components', `${componentPath}.tsx`);
+
+    if (existsSync(targetPath)) {
+      console.error(`\x1b[31m[Error]\x1b[0m Component ${componentPath}.tsx already exists!`);
+      return;
+    }
+
+    ensureDir(targetPath);
+
+    const tsxContent = `export interface ${pascalName}Props {
+  title?: string;
+  children?: any;
+}
+
+export function ${pascalName}({ title, children }: ${pascalName}Props) {
+  return (
+    <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/40">
+      {title && <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>}
+      <div>{children}</div>
+    </div>
+  );
+}
+`;
+    writeFileSync(targetPath, tsxContent, 'utf-8');
+    console.log(`\x1b[32m✔ TSX Component created successfully:\x1b[0m views/components/${componentPath}.tsx`);
+    console.log(`\x1b[90mUsage: import { ${pascalName} } from '@/views/components/${componentPath}';\x1b[0m`);
+    return;
+  }
 
   if (withJs) {
     // Co-located folder component: views/components/<name>/<name>.bir and <name>.js
@@ -588,6 +659,78 @@ export default function (el: HTMLElement) {
     writeFileSync(targetPath, templateContent, 'utf-8');
     console.log(`\x1b[32m✔ Component created successfully:\x1b[0m views/components/${cleanName}.bir`);
     console.log(`\x1b[90mUsage in views: <x-${cleanName.replace(/\//g, '.')} />\x1b[0m`);
+  }
+}
+
+export function makeView(name: string, jsx?: boolean) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify a view name. E.g.: bir make:view Dashboard [--jsx]');
+    return;
+  }
+  try {
+    assertValidName(name);
+  } catch (err: any) {
+    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
+    return;
+  }
+
+  const useJsx = jsx ?? isJsxProject();
+  const cleanName = name.replace(/\.(bir|html|tsx|jsx)$/, '').replace(/\./g, '/');
+  const baseName = cleanName.split('/').pop() || cleanName;
+  const pascalName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+
+  if (useJsx) {
+    const parts = cleanName.split('/');
+    parts[parts.length - 1] = pascalName;
+    const viewPath = parts.join('/');
+    const targetPath = resolve(process.cwd(), 'views', `${viewPath}.tsx`);
+
+    if (existsSync(targetPath)) {
+      console.error(`\x1b[31m[Error]\x1b[0m View ${viewPath}.tsx already exists!`);
+      return;
+    }
+
+    ensureDir(targetPath);
+
+    const depth = parts.length - 1;
+    const layoutImport = depth === 0 ? './layouts/Layout.js' : `${'../'.repeat(depth)}layouts/Layout.js`;
+
+    const tsxContent = `import { Layout } from '${layoutImport}';
+
+export default function ${pascalName}(props: { title?: string }) {
+  return (
+    <Layout title={props.title || '${pascalName}'}>
+      <main className="max-w-4xl mx-auto px-6 py-12">
+        <h1 className="text-2xl font-bold text-white">${pascalName}</h1>
+        <p className="text-sm text-zinc-400 mt-2">Rendered via BirJS TSX View Engine.</p>
+      </main>
+    </Layout>
+  );
+}
+`;
+    writeFileSync(targetPath, tsxContent, 'utf-8');
+    console.log(`\x1b[32m✔ TSX View created successfully:\x1b[0m views/${viewPath}.tsx`);
+    console.log(`\x1b[90mRender in controller: return ctx.render('${viewPath}', { title: '${pascalName}' });\x1b[0m`);
+  } else {
+    const targetPath = resolve(process.cwd(), 'views', `${cleanName}.html`);
+
+    if (existsSync(targetPath)) {
+      console.error(`\x1b[31m[Error]\x1b[0m View ${cleanName}.html already exists!`);
+      return;
+    }
+
+    ensureDir(targetPath);
+
+    const htmlContent = `<x-layouts.app title="${pascalName}">
+  <main class="max-w-4xl mx-auto px-6 py-12">
+    <h1 class="text-2xl font-bold text-white">${pascalName}</h1>
+    <p class="text-sm text-zinc-400 mt-2">Rendered via BirJS Blade Engine.</p>
+  </main>
+</x-layouts.app>
+`;
+    writeFileSync(targetPath, htmlContent, 'utf-8');
+    console.log(`\x1b[32m✔ Blade View created successfully:\x1b[0m views/${cleanName}.html`);
+    console.log(`\x1b[90mRender in controller: return ctx.render('${cleanName}');\x1b[0m`);
   }
 }
 

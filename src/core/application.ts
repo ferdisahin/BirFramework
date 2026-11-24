@@ -1,5 +1,5 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { watch, existsSync } from 'node:fs';
+import { watch, existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Context } from '../http/context.js';
 import { Router, defaultRouter } from '../router/router.js';
@@ -10,6 +10,7 @@ import { sessionMiddleware } from '../auth/session.js';
 import { ErrorHandler } from '../errors/handler.js';
 import { Broadcast } from '../broadcasting/index.js';
 import { ServiceProvider, type Plugin, type ServiceProviderClass } from './provider.js';
+import { requestContextStorage } from './request-context.js';
 import '../core/env.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -196,6 +197,30 @@ export class Application {
       await this.boot();
     }
     const ctx = ctxOrReq instanceof Context ? ctxOrReq : new Context(ctxOrReq, maybeRes!);
+
+    // Maintenance Mode (bir down / bir up)
+    const downFile = resolve(process.cwd(), 'storage/framework/down.json');
+    if (existsSync(downFile)) {
+      let message = 'Application is currently undergoing scheduled maintenance.';
+      let retry = 60;
+      try {
+        const payload = JSON.parse(readFileSync(downFile, 'utf-8'));
+        if (payload.message) message = String(payload.message);
+        if (payload.retry) retry = Number(payload.retry) || 60;
+      } catch {
+        // fallback defaults
+      }
+
+      ctx.header('Retry-After', String(retry));
+      const wantsJson = ctx.headers['accept']?.includes('application/json') || ctx.path.startsWith('/api/');
+      if (wantsJson) {
+        ctx.json({ error: 'Service Unavailable', message, retryAfter: retry }, 503);
+      } else {
+        const safeMsg = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        ctx.html(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>503 Maintenance</title></head><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090b;color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;"><div style="max-width:460px;padding:32px;border:1px solid #27272a;border-radius:12px;background:#09090b;text-align:center;"><div style="font-size:11px;font-family:monospace;color:#f59e0b;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">503 Service Unavailable</div><h1 style="margin:0 0 10px;font-size:20px;font-weight:600;">Be Right Back</h1><p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;">${safeMsg}</p></div></body></html>`, 503);
+      }
+      return;
+    }
     let index = -1;
     const middlewares = this.globalMiddlewares;
 
@@ -214,11 +239,13 @@ export class Application {
       }
     };
 
-    try {
-      await dispatch(0);
-    } catch (err: any) {
-      await ErrorHandler.handleException(ctx, err);
-    }
+    await requestContextStorage.run(ctx, async () => {
+      try {
+        await dispatch(0);
+      } catch (err: any) {
+        await ErrorHandler.handleException(ctx, err);
+      }
+    });
   }
 
   /**

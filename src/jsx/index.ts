@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import type { ComponentFunction, JSXChild, JSXElement } from './types.js';
 import { renderToHtml, renderToString, isValidElement } from './render.js';
 import { raw, RawHtmlString } from './escape.js';
+import { getCurrentContext } from '../core/request-context.js';
+import { csrfToken } from '../security/csrf.js';
 
 export { renderToHtml, renderToString, isValidElement, raw, RawHtmlString };
 export type { JSXChild, JSXElement, ComponentFunction };
@@ -107,4 +109,58 @@ export function Vite(props: { entries?: string | string[] }): JSXElement | JSXEl
   }
 
   return prodElements;
+}
+
+/**
+ * Render a hidden CSRF protection input (<input type="hidden" name="_token" value="..." />)
+ */
+export function Csrf(props: { token?: string } = {}): JSXElement {
+  const ctx = getCurrentContext();
+  const token = props.token ?? (ctx?.session ? csrfToken(ctx) : '');
+  return h('input', { type: 'hidden', name: '_token', value: token });
+}
+
+/**
+ * Render a hidden HTTP method spoofing input (<input type="hidden" name="_method" value="PUT|PATCH|DELETE" />)
+ */
+export function Method(props: { method: 'PUT' | 'PATCH' | 'DELETE' | string }): JSXElement {
+  return h('input', { type: 'hidden', name: '_method', value: String(props.method || 'POST').toUpperCase() });
+}
+
+/**
+ * Render validation error message for a specific form field from session flash errors
+ */
+export function ErrorMessage(props: { field: string; message?: string; className?: string }): JSXElement | null {
+  const ctx = getCurrentContext();
+  const errors = ctx?.session?.getFlash<Record<string, string | string[]>>('errors');
+  const fieldErr = props.message ?? errors?.[props.field];
+  if (!fieldErr) return null;
+
+  const text = Array.isArray(fieldErr) ? fieldErr[0] : fieldErr;
+  if (!text) return null;
+
+  return h('p', { className: props.className || 'text-xs text-red-500 mt-1' }, text);
+}
+
+/**
+ * Render session flash status/alert banner (success, error, warning, info)
+ */
+export function Flash(props: {
+  type?: 'success' | 'error' | 'warning' | 'info';
+  message?: string;
+  className?: string;
+} = {}): JSXElement | null {
+  const type = props.type || 'success';
+  const ctx = getCurrentContext();
+  const message = props.message ?? ctx?.session?.getFlash<string>(type);
+  if (!message) return null;
+
+  const defaultStyles: Record<string, string> = {
+    success: 'p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs',
+    error: 'p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-xs',
+    warning: 'p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs',
+    info: 'p-3 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-400 text-xs',
+  };
+
+  return h('div', { className: props.className || defaultStyles[type] || defaultStyles.info, role: 'alert' }, message);
 }

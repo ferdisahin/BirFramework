@@ -109,3 +109,14 @@ export function rateLimit(options: RateLimitOptions = {}): Middleware {
     await next();
   };
 }
+
+/**
+ * Laravel-style shorthand rate limiter middleware: throttle(maxAttempts, decayMinutes)
+ * Example: Route.get('/api/data', handler).middleware(throttle(60, 1));
+ */
+export function throttle(maxAttempts: number = 60, decayMinutes: number = 1): Middleware {
+  return rateLimit({
+    max: maxAttempts,
+    windowMs: Math.max(0.01, decayMinutes) * 60 * 1000,
+  });
+}
