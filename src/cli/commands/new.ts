@@ -517,124 +517,160 @@ ${viteHead}
 export default function Welcome(props: { title: string; version: string; nodeVersion: string }) {
   return (
     <Layout title={props.title}>
-      <div className="${isTailwind ? 'min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between selection:bg-emerald-500/20 selection:text-emerald-400' : 'wrapper'}">
-        {/* Top Navbar */}
-        <header className="${isTailwind ? 'border-b border-zinc-900/80 bg-zinc-950/60 backdrop-blur sticky top-0 z-50' : 'brand'}">
-          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-16 flex items-center justify-between' : ''}">
-            <div className="${isTailwind ? 'flex items-center gap-3 font-semibold tracking-tight text-white' : ''}">
-              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400' : ''}">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+      <div className="${isTailwind ? 'min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between selection:bg-zinc-800 selection:text-white' : 'wrapper'}">
+        {/* Navigation */}
+        <header className="${isTailwind ? 'border-b border-zinc-800/80 bg-[#09090b]/80 backdrop-blur sticky top-0 z-50' : 'brand'}">
+          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-14 flex items-center justify-between' : ''}">
+            <div className="${isTailwind ? 'flex items-center gap-3' : ''}">
+              <div className="${isTailwind ? 'w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200' : ''}">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
               </div>
-              <span className="text-base font-bold">BirJS</span>
-              <span className="${isTailwind ? 'text-xs px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono' : ''}">
+              <span className="text-sm font-semibold tracking-tight text-white">BirJS</span>
+              <span className="${isTailwind ? 'text-[11px] px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/70 text-zinc-400 font-mono' : ''}">
                 v{props.version}
               </span>
             </div>
-            <nav className="${isTailwind ? 'flex items-center gap-6 text-sm text-zinc-400' : ''}">
-              <a href="https://birjs.com" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">Documentation</a>
-              <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="${isTailwind ? 'hover:text-white transition flex items-center gap-1.5' : ''}">
+            <nav className="${isTailwind ? 'flex items-center gap-6 text-xs text-zinc-400' : ''}">
+              <a href="https://birjs.com" target="_blank" className="${isTailwind ? 'hover:text-white transition-colors' : ''}">Documentation</a>
+              <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="${isTailwind ? 'hover:text-white transition-colors flex items-center gap-1' : ''}">
                 <span>GitHub</span>
-                <span className="text-zinc-600">&rarr;</span>
+                <svg className="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 17l9.2-9.2M17 17V8H8" />
+                </svg>
               </a>
             </nav>
           </div>
         </header>
 
-        {/* Hero & Getting Started */}
-        <main className="${isTailwind ? 'max-w-6xl mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full' : ''}">
-          {/* Badge */}
-          <div className="${isTailwind ? 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 w-fit mb-6 font-medium' : ''}">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>BirJS v{props.version} &bull; TypeScript Artisans</span>
+        {/* Hero & Quickstart */}
+        <main className="${isTailwind ? 'max-w-6xl mx-auto px-6 py-20 flex-1 flex flex-col justify-center w-full' : ''}">
+          {/* Status Badge */}
+          <div className="${isTailwind ? 'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] bg-zinc-900 border border-zinc-800 text-zinc-300 w-fit mb-6 font-mono' : ''}">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>BirJS v{props.version} &bull; TypeScript Core</span>
           </div>
 
           {/* Heading */}
-          <h1 className="${isTailwind ? 'text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1]' : ''}">
+          <h1 className="${isTailwind ? 'text-4xl sm:text-6xl font-bold tracking-tight text-white max-w-3xl leading-[1.08]' : ''}">
             The full-stack framework for TypeScript artisans.
           </h1>
 
-          <p className="${isTailwind ? 'mt-5 text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed' : 'lead'}">
+          <p className="${isTailwind ? 'mt-5 text-base sm:text-lg text-zinc-400 max-w-2xl leading-relaxed font-normal' : 'lead'}">
             Laravel ergonomics paired with persistent-memory V8 speed. ActiveRecord ORM, background queues, real-time WebSockets, and zero-bundle server components.
           </p>
 
-          {/* Quick Start Guidance Box */}
-          <div className="${isTailwind ? 'mt-8 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4' : ''}">
-            <div className="${isTailwind ? 'flex items-center gap-3 text-xs text-zinc-300 font-mono' : ''}">
-              <span className="text-emerald-400 font-bold">$</span>
-              <span>Edit <code className="${isTailwind ? 'text-white bg-zinc-800 px-1.5 py-0.5 rounded' : ''}">app/controllers/HomeController.${jsxExt}</code> to get started</span>
+          {/* Quickstart Bar */}
+          <div className="${isTailwind ? 'mt-8 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4' : ''}">
+            <div className="${isTailwind ? 'flex items-center gap-2.5 text-xs text-zinc-300 font-mono' : ''}">
+              <span className="text-zinc-500 select-none">$</span>
+              <span>Edit <code className="${isTailwind ? 'text-white bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-mono text-[11px]' : ''}">app/controllers/HomeController.${jsxExt}</code> to get started</span>
             </div>
             <a
               href="https://birjs.com/docs/installation"
               target="_blank"
-              className="${isTailwind ? 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 transition shrink-0' : ''}"
+              className="${isTailwind ? 'text-xs font-medium px-3 py-1.5 rounded bg-zinc-100 hover:bg-white text-zinc-950 transition-colors shrink-0 flex items-center gap-1.5' : ''}"
             >
-              Read Docs &rarr;
+              <span>Read Docs</span>
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
             </a>
           </div>
 
-          {/* 4 Feature Cards */}
+          {/* Architectural Pillars Grid */}
           <div className="${isTailwind ? 'grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12' : 'grid'}">
-            <a href="https://birjs.com/docs/routing" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
-              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
-                ⚡
+            {/* Card 1: Routing */}
+            <a href="https://birjs.com/docs/routing" target="_blank" className="${isTailwind ? 'group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5' : ''}">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                  <polyline points="2 17 12 22 22 17"></polyline>
+                  <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
               </div>
-              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between' : ''}">
                 Routing & Views
-                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+                <svg className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </h2>
               <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
-                Define expressive routes, controllers, middleware, and type-safe server components.
+                Define expressive routes, middleware pipelines, and zero-bundle server components.
               </p>
             </a>
 
-            <a href="https://birjs.com/docs/models" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
-              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
-                🗄️
+            {/* Card 2: ORM */}
+            <a href="https://birjs.com/docs/models" target="_blank" className="${isTailwind ? 'group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5' : ''}">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
               </div>
-              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between' : ''}">
                 ActiveRecord ORM
-                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+                <svg className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </h2>
               <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
-                Multi-driver database connectivity, schema migrations, seeders, and factories.
+                Multi-driver database connectivity, schema migrations, seeders, and model relations.
               </p>
             </a>
 
-            <a href="https://birjs.com/docs/queues" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
-              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
-                📬
+            {/* Card 3: Queues */}
+            <a href="https://birjs.com/docs/queues" target="_blank" className="${isTailwind ? 'group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5' : ''}">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 3h5v5"></path>
+                  <path d="M8 21H3v-5"></path>
+                  <path d="M21 3l-7 7"></path>
+                  <path d="M3 21l7-7"></path>
+                  <rect x="7" y="7" width="10" height="10" rx="2"></rect>
+                </svg>
               </div>
-              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between' : ''}">
                 Queues & Jobs
-                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+                <svg className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </h2>
               <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
-                Asynchronous background job dispatching, retries, and task scheduling daemons.
+                Asynchronous background job dispatching, failure retries, and scheduled tasks.
               </p>
             </a>
 
-            <a href="https://birjs.com/docs/events" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
-              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
-                📡
+            {/* Card 4: WebSockets */}
+            <a href="https://birjs.com/docs/events" target="_blank" className="${isTailwind ? 'group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5' : ''}">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4.93 4.93a10 10 0 0 1 14.14 0"></path>
+                  <path d="M7.76 7.76a6 6 0 0 1 8.48 0"></path>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <path d="M12 14v8"></path>
+                </svg>
               </div>
-              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
-                Real-Time WebSockets
-                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between' : ''}">
+                Real-Time Events
+                <svg className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </h2>
               <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
-                Native channel-based WebSocket broadcasting and real-time event distribution.
+                Channel-based WebSocket broadcasting, auth guards, and real-time streams.
               </p>
             </a>
           </div>
         </main>
 
         {/* Footer */}
-        <footer className="${isTailwind ? 'border-t border-zinc-900/80 bg-zinc-950/40' : ''}">
-          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-14 flex items-center justify-between text-xs text-zinc-500' : ''}">
+        <footer className="${isTailwind ? 'border-t border-zinc-800/80 bg-[#09090b]/40' : ''}">
+          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-12 flex items-center justify-between text-xs text-zinc-500' : ''}">
             <div>Node.js {props.nodeVersion} &bull; BirFramework v{props.version}</div>
-            <div>MIT Licensed &bull; Built with BirJS</div>
+            <div>MIT Licensed</div>
           </div>
         </footer>
       </div>
@@ -675,107 +711,139 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   // 7. views/welcome.html (Tailwind or Pure CSS)
   const welcomeContent = isTailwind
     ? `<x-layouts.app title="{{ title }}">
-  <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between selection:bg-emerald-500/20 selection:text-emerald-400">
-    <!-- Top Navbar -->
-    <header class="border-b border-zinc-900/80 bg-zinc-950/60 backdrop-blur sticky top-0 z-50">
-      <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-3 font-semibold tracking-tight text-white">
-          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+  <div class="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between selection:bg-zinc-800 selection:text-white">
+    <!-- Navigation -->
+    <header class="border-b border-zinc-800/80 bg-[#09090b]/80 backdrop-blur sticky top-0 z-50">
+      <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
           </div>
-          <span class="text-base font-bold">BirJS</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
+          <span class="text-sm font-semibold tracking-tight text-white">BirJS</span>
+          <span class="text-[11px] px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/70 text-zinc-400 font-mono">
             v{{ version }}
           </span>
         </div>
-        <nav class="flex items-center gap-6 text-sm text-zinc-400">
-          <a href="https://birjs.com" target="_blank" class="hover:text-white transition">Documentation</a>
-          <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition flex items-center gap-1.5">
+        <nav class="flex items-center gap-6 text-xs text-zinc-400">
+          <a href="https://birjs.com" target="_blank" class="hover:text-white transition-colors">Documentation</a>
+          <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition-colors flex items-center gap-1">
             <span>GitHub</span>
-            <span class="text-zinc-600">&rarr;</span>
+            <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 17l9.2-9.2M17 17V8H8" />
+            </svg>
           </a>
         </nav>
       </div>
     </header>
 
-    <!-- Hero & Getting Started -->
-    <main class="max-w-6xl mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 w-fit mb-6 font-medium">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span>BirJS v{{ version }} &bull; TypeScript Artisans</span>
+    <!-- Hero & Quickstart -->
+    <main class="max-w-6xl mx-auto px-6 py-20 flex-1 flex flex-col justify-center w-full">
+      <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] bg-zinc-900 border border-zinc-800 text-zinc-300 w-fit mb-6 font-mono">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        <span>BirJS v{{ version }} &bull; TypeScript Core</span>
       </div>
 
-      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1]">
+      <h1 class="text-4xl sm:text-6xl font-bold tracking-tight text-white max-w-3xl leading-[1.08]">
         The full-stack framework for TypeScript artisans.
       </h1>
 
-      <p class="mt-5 text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed">
+      <p class="mt-5 text-base sm:text-lg text-zinc-400 max-w-2xl leading-relaxed font-normal">
         Laravel ergonomics paired with persistent-memory V8 speed. ActiveRecord ORM, background queues, real-time WebSockets, and server-rendered Blade templates.
       </p>
 
-      <div class="mt-8 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-3 text-xs text-zinc-300 font-mono">
-          <span class="text-emerald-400 font-bold">$</span>
-          <span>Edit <code class="text-white bg-zinc-800 px-1.5 py-0.5 rounded">routes/web.${ext}</code> to get started</span>
+      <div class="mt-8 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-2.5 text-xs text-zinc-300 font-mono">
+          <span class="text-zinc-500 select-none">$</span>
+          <span>Edit <code class="text-white bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-mono text-[11px]">routes/web.${ext}</code> to get started</span>
         </div>
         <a
           href="https://birjs.com/docs/installation"
           target="_blank"
-          class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 transition shrink-0"
+          class="text-xs font-medium px-3 py-1.5 rounded bg-zinc-100 hover:bg-white text-zinc-950 transition-colors shrink-0 flex items-center gap-1.5"
         >
-          Read Docs &rarr;
+          <span>Read Docs</span>
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
         </a>
       </div>
 
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
-        <a href="https://birjs.com/docs/routing" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
-          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
-            ⚡
+        <a href="https://birjs.com/docs/routing" target="_blank" class="group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
+          <div class="w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
           </div>
-          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between">
             Routing & Views
-            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+            <svg class="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
             Define web routes, controllers, middleware, and Blade component templates.
           </p>
         </a>
 
-        <a href="https://birjs.com/docs/models" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
-          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
-            🗄️
+        <a href="https://birjs.com/docs/models" target="_blank" class="group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
+          <div class="w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
           </div>
-          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between">
             ActiveRecord ORM
-            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+            <svg class="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
             Active-record models, schema migrations, and multi-driver database queries.
           </p>
         </a>
 
-        <a href="https://birjs.com/docs/queues" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
-          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
-            📬
+        <a href="https://birjs.com/docs/queues" target="_blank" class="group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
+          <div class="w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 3h5v5"></path>
+              <path d="M8 21H3v-5"></path>
+              <path d="M21 3l-7 7"></path>
+              <path d="M3 21l7-7"></path>
+              <rect x="7" y="7" width="10" height="10" rx="2"></rect>
+            </svg>
           </div>
-          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between">
             Queues & Jobs
-            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+            <svg class="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
             Dispatch background workers, handle failed jobs, and schedule cron tasks.
           </p>
         </a>
 
-        <a href="https://birjs.com/docs/events" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
-          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
-            📡
+        <a href="https://birjs.com/docs/events" target="_blank" class="group p-5 rounded-lg border border-zinc-800/70 bg-zinc-900/20 hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
+          <div class="w-8 h-8 rounded border border-zinc-800 bg-zinc-900/80 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:border-zinc-700 transition-colors mb-3.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4.93 4.93a10 10 0 0 1 14.14 0"></path>
+              <path d="M7.76 7.76a6 6 0 0 1 8.48 0"></path>
+              <circle cx="12" cy="12" r="2"></circle>
+              <path d="M12 14v8"></path>
+            </svg>
           </div>
-          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
-            Real-Time WebSockets
-            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+          <h2 class="text-sm font-semibold text-zinc-100 group-hover:text-white flex items-center justify-between">
+            Real-Time Events
+            <svg class="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
             Native channel-based WebSocket broadcasting and real-time event distribution.
@@ -785,10 +853,10 @@ export default function Welcome(props: { title: string; version: string; nodeVer
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-zinc-900/80 bg-zinc-950/40">
-      <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between text-xs text-zinc-500">
+    <footer class="border-t border-zinc-800/80 bg-[#09090b]/40">
+      <div class="max-w-6xl mx-auto px-6 h-12 flex items-center justify-between text-xs text-zinc-500">
         <div>Node.js {{ nodeVersion }} &bull; BirFramework v{{ version }}</div>
-        <div>MIT Licensed &bull; Built with BirJS</div>
+        <div>MIT Licensed</div>
       </div>
     </footer>
   </div>
