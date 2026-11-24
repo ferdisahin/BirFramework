@@ -3,6 +3,7 @@ import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
 import { runTinker } from './commands/tinker.js';
+import { runPail } from './commands/pail.js';
 import { defaultRouter } from '../router/router.js';
 import { migrator } from '../database/migrator.js';
 import { worker } from '../queue/worker.js';
@@ -200,6 +201,23 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'dev': {
+      const child = spawn('npm', ['run', 'dev'], {
+        stdio: 'inherit',
+        shell: true,
+      });
+      child.on('exit', (code: number | null) => {
+        process.exit(code || 0);
+      });
+      break;
+    }
+
+    case 'pail':
+    case 'logs': {
+      runPail(args[1]);
+      break;
+    }
+
     case 'test': {
       console.log('\n\x1b[36m⚡ Running test suite with BirFramework Test Runner...\x1b[0m\n');
       const filter = args[1] && !args[1].startsWith('-') ? args[1] : undefined;
@@ -262,7 +280,9 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
       console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo] [--blade|--jsx]\x1b[0m Create a new project');
+      console.log('  \x1b[32mdev\x1b[0m                       Start full-stack dev dashboard (Server, Queue, Logs, Vite)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
+      console.log('  \x1b[32mpail\x1b[0m                      Live real-time application log stream');
       console.log('  \x1b[32mtest [filter]\x1b[0m             Run application automated test suites');
       console.log('  \x1b[32mtinker\x1b[0m                    Start interactive REPL console with auto-loaded models');
       console.log('  \x1b[32mroute:list\x1b[0m                List all registered application routes');

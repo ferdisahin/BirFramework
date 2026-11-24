@@ -1,4 +1,5 @@
 import type { Middleware } from '../router/middleware.js';
+import { Log } from '../logging/log.js';
 
 export function logger(): Middleware {
   return async (ctx, next) => {
@@ -9,6 +10,7 @@ export function logger(): Middleware {
     const statusColor = status >= 500 ? '\x1b[31m' : status >= 400 ? '\x1b[33m' : '\x1b[32m';
     const reset = '\x1b[0m';
     console.log(`[HTTP] ${ctx.method} ${ctx.path} ${statusColor}${status}${reset} - ${duration}ms`);
+    Log.info(`${ctx.method} ${ctx.path} ${status} - ${duration}ms`);
   };
 }
 

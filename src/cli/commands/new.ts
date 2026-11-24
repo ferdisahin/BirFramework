@@ -172,8 +172,10 @@ export async function createNewProject(
       devDependencies['@tailwindcss/vite'] = '^4.0.0';
     }
 
-    devScripts['dev'] = 'concurrently -k -p "[{name}]" -n "vite,app" -c "cyan,green" "npm run dev:vite" "npm run dev:server"';
+    devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585,#ffb703" --names="server,queue,logs,vite" "npm run dev:server" "npm run dev:queue" "npm run dev:logs" "npm run dev:vite"';
     devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+    devScripts['dev:queue'] = 'npx bir queue:work';
+    devScripts['dev:logs'] = 'npx bir pail';
     devScripts['dev:vite'] = 'vite';
     devScripts['build'] = 'vite build';
 
@@ -206,13 +208,17 @@ export default defineConfig({
       devDependencies['concurrently'] = '^9.1.0';
       devScripts['build:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify';
       devScripts['watch:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch';
-      devScripts['dev'] = isTS
-        ? 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "npx tsx watch app.ts"'
-        : 'concurrently -k -p "[{name}]" -n "css,app" -c "cyan,green" "npm:watch:css" "node --watch app.js"';
+      devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585,#ffb703" --names="server,queue,logs,css" "npm run dev:server" "npm run dev:queue" "npm run dev:logs" "npm run watch:css"';
       devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+      devScripts['dev:queue'] = 'npx bir queue:work';
+      devScripts['dev:logs'] = 'npx bir pail';
       devScripts['build'] = 'npm run build:css';
     } else {
-      devScripts['dev'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+      devDependencies['concurrently'] = '^9.1.0';
+      devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585" --names="server,queue,logs" "npm run dev:server" "npm run dev:queue" "npm run dev:logs"';
+      devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+      devScripts['dev:queue'] = 'npx bir queue:work';
+      devScripts['dev:logs'] = 'npx bir pail';
     }
   }
 
