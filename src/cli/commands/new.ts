@@ -314,7 +314,8 @@ export class HomeController {
   }
 }
 `);
-  writeFileSync(join(projectDir, `app/controllers/HomeController.${ext}`), controllerContent, 'utf-8');
+  const controllerExt = isJsx ? (isTS ? 'tsx' : 'jsx') : ext;
+  writeFileSync(join(projectDir, `app/controllers/HomeController.${controllerExt}`), controllerContent, 'utf-8');
 
   // 5. CSS files (always ensure public/css/app.css exists)
   const cssFileContent = isTailwind
