@@ -1,6 +1,6 @@
 import { QueryBuilder } from './query.js';
 import { dbConnection } from './connection.js';
-import { HasMany, HasOne, BelongsTo } from './relations.js';
+import { HasMany, HasOne, BelongsTo, BelongsToMany } from './relations.js';
 import type { LengthAwarePaginator, PaginationOptions } from '../pagination/index.js';
 
 export type ModelAttributes<T> = {
@@ -227,6 +227,47 @@ export class Model<T = any> {
     return instance;
   }
 
+  public static async firstOrCreate<M extends typeof Model>(
+    this: M,
+    attributes: Record<string, any>,
+    values: Record<string, any> = {}
+  ): Promise<InstanceType<M>> {
+    const q = this.query();
+    for (const [k, v] of Object.entries(attributes)) {
+      q.where(k, '=', v);
+    }
+    const existing = await q.first();
+    if (existing) return existing;
+
+    return this.create({ ...attributes, ...values });
+  }
+
+  public static async updateOrCreate<M extends typeof Model>(
+    this: M,
+    attributes: Record<string, any>,
+    values: Record<string, any> = {}
+  ): Promise<InstanceType<M>> {
+    const q = this.query();
+    for (const [k, v] of Object.entries(attributes)) {
+      q.where(k, '=', v);
+    }
+    const existing = await q.first();
+    if (existing) {
+      await existing.update(values);
+      return existing;
+    }
+
+    return this.create({ ...attributes, ...values });
+  }
+
+  public static async chunk<M extends typeof Model>(
+    this: M,
+    size: number,
+    callback: (rows: InstanceType<M>[], page: number) => Promise<boolean | void> | boolean | void
+  ): Promise<void> {
+    return this.query().chunk(size, callback);
+  }
+
   public fill(data: Record<string, any>): this {
     const ctor = this.constructor as typeof Model;
     const safeData = ctor.filterFillable(data);
@@ -400,6 +441,25 @@ export class Model<T = any> {
     const fKey = foreignKey || `${relatedModel.name.toLowerCase()}_id`;
     const oKey = ownerKey || (relatedModel as any).primaryKey || 'id';
     return new BelongsTo(this, relatedModel as any, fKey, oKey);
+  }
+
+  /**
+   * Define a many-to-many relationship
+   * e.g. user.belongsToMany(Role, 'role_user', 'user_id', 'role_id')
+   */
+  public belongsToMany<M extends typeof Model>(
+    relatedModel: M,
+    pivotTable: string,
+    foreignPivotKey?: string,
+    relatedPivotKey?: string,
+    parentKey?: string,
+    relatedKey?: string
+  ): BelongsToMany<InstanceType<M>> {
+    const fPivot = foreignPivotKey || `${this.constructor.name.toLowerCase()}_id`;
+    const rPivot = relatedPivotKey || `${relatedModel.name.toLowerCase()}_id`;
+    const pKey = parentKey || (this.constructor as typeof Model).primaryKey || 'id';
+    const rKey = relatedKey || (relatedModel as any).primaryKey || 'id';
+    return new BelongsToMany(this, relatedModel as any, pivotTable, fPivot, rPivot, pKey, rKey);
   }
 
   public toJSON(): Record<string, any> {

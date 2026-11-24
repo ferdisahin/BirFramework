@@ -1,8 +1,8 @@
 import type { Model } from './model.js';
-import type { QueryBuilder } from './query.js';
+import { QueryBuilder } from './query.js';
 
 export abstract class Relation<T = any> {
-  public abstract readonly type: 'hasMany' | 'belongsTo' | 'hasOne';
+  public abstract readonly type: 'hasMany' | 'belongsTo' | 'hasOne' | 'belongsToMany';
   public parent: Model;
   public relatedModel: typeof Model;
   public foreignKey: string;
@@ -81,5 +81,86 @@ export class BelongsTo<T = any> extends Relation<T> {
     const val = this.parent.attributes[this.foreignKey];
     if (val === undefined || val === null) return Promise.resolve(null);
     return (this.relatedModel as any).find(val);
+  }
+}
+
+export class BelongsToMany<T = any> extends Relation<T> {
+  public readonly type = 'belongsToMany' as const;
+  public pivotTable: string;
+  public relatedPivotKey: string;
+  public relatedKey: string;
+
+  constructor(
+    parent: Model,
+    relatedModel: typeof Model,
+    pivotTable: string,
+    foreignPivotKey: string,
+    relatedPivotKey: string,
+    parentKey: string = 'id',
+    relatedKey: string = 'id'
+  ) {
+    super(parent, relatedModel, foreignPivotKey, parentKey);
+    this.pivotTable = pivotTable;
+    this.relatedPivotKey = relatedPivotKey;
+    this.relatedKey = relatedKey;
+  }
+
+  public getQuery(): QueryBuilder<T> {
+    // Subquery-free approach compatible with all drivers via pivot lookup or IN
+    return (this.relatedModel as any).query();
+  }
+
+  public override async get(): Promise<T[]> {
+    const parentId = this.parent.attributes[this.localKey];
+    if (parentId === undefined || parentId === null) return [];
+
+    const pivotRows = await new QueryBuilder(this.pivotTable)
+      .where(this.foreignKey, '=', parentId)
+      .get();
+
+    const relatedIds = pivotRows.map((r: any) => r[this.relatedPivotKey]).filter((v: any) => v !== undefined && v !== null);
+    if (relatedIds.length === 0) return [];
+
+    return (this.relatedModel as any).query().whereIn(this.relatedKey, relatedIds).get();
+  }
+
+  public async attach(ids: any | any[]): Promise<void> {
+    const parentId = this.parent.attributes[this.localKey];
+    if (parentId === undefined || parentId === null) {
+      throw new Error('[BirORM] Cannot attach relation to an unsaved parent model.');
+    }
+
+    const idList = Array.isArray(ids) ? ids : [ids];
+    if (idList.length === 0) return;
+
+    const rows = idList.map((id) => ({
+      [this.foreignKey]: parentId,
+      [this.relatedPivotKey]: id,
+    }));
+
+    await new QueryBuilder(this.pivotTable).insert(rows);
+  }
+
+  public async detach(ids?: any | any[]): Promise<number> {
+    const parentId = this.parent.attributes[this.localKey];
+    if (parentId === undefined || parentId === null) return 0;
+
+    const q = new QueryBuilder(this.pivotTable).where(this.foreignKey, '=', parentId);
+    if (ids !== undefined) {
+      const idList = Array.isArray(ids) ? ids : [ids];
+      if (idList.length === 0) return 0;
+      q.whereIn(this.relatedPivotKey, idList);
+    }
+
+    return q.delete();
+  }
+
+  public async sync(ids: any[]): Promise<void> {
+    await this.detach();
+    await this.attach(ids);
+  }
+
+  protected resolve(): Promise<T[]> {
+    return this.get();
   }
 }

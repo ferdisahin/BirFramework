@@ -293,6 +293,72 @@ export class QueryBuilder<T = any> {
     return Number(result.changes);
   }
 
+  /**
+   * Atomically increment a numeric column in the database.
+   */
+  public async increment(column: string, amount: number = 1, extra: Record<string, any> = {}): Promise<number> {
+    return this.adjustColumn(column, '+', amount, extra);
+  }
+
+  /**
+   * Atomically decrement a numeric column in the database.
+   */
+  public async decrement(column: string, amount: number = 1, extra: Record<string, any> = {}): Promise<number> {
+    return this.adjustColumn(column, '-', amount, extra);
+  }
+
+  private async adjustColumn(
+    column: string,
+    op: '+' | '-',
+    amount: number,
+    extra: Record<string, any>
+  ): Promise<number> {
+    const safeCol = sanitizeIdentifier(column);
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount)) {
+      throw new Error(`[BirDatabase] Invalid numeric amount for ${op === '+' ? 'increment' : 'decrement'}: ${amount}`);
+    }
+
+    const setParts = [`${safeCol} = ${safeCol} ${op} ?`];
+    const params: any[] = [numAmount];
+
+    for (const [k, v] of Object.entries(extra)) {
+      setParts.push(`${sanitizeIdentifier(k)} = ?`);
+      params.push(v);
+    }
+
+    let sql = `UPDATE \`${this.tableName}\` SET ${setParts.join(', ')}`;
+    const { whereSql, whereParams } = this.buildWhere();
+    if (whereSql) {
+      sql += ` WHERE ${whereSql}`;
+      params.push(...whereParams);
+    }
+
+    const result = await this.connection.execute(sql, params);
+    return Number(result.changes);
+  }
+
+  /**
+   * Process query results in fixed-size chunks to keep memory usage bounded.
+   */
+  public async chunk(
+    size: number,
+    callback: (rows: T[], page: number) => Promise<boolean | void> | boolean | void
+  ): Promise<void> {
+    const chunkSize = Math.max(1, Math.floor(size));
+    let page = 1;
+
+    while (true) {
+      this.limit(chunkSize).offset((page - 1) * chunkSize);
+      const rows = await this.get();
+      if (rows.length === 0) break;
+
+      const res = await callback(rows, page);
+      if (res === false || rows.length < chunkSize) break;
+      page++;
+    }
+  }
+
   public async delete(): Promise<number> {
     let sql = `DELETE FROM \`${this.tableName}\``;
     const { whereSql, whereParams } = this.buildWhere();
