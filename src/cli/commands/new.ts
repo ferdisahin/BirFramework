@@ -503,7 +503,7 @@ footer {
         <title>{title} - BirJS</title>
 ${viteHead}
       </head>
-      <body className="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
+      <body className="${isTailwind ? 'bg-[#09090b] text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
         {children}
       </body>
     </html>
@@ -517,7 +517,7 @@ ${viteHead}
 export default function Welcome(props: { title: string; version: string; nodeVersion: string }) {
   return (
     <Layout title={props.title}>
-      <div className="${isTailwind ? 'min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between selection:bg-zinc-800 selection:text-white' : 'wrapper'}">
+      <div className="${isTailwind ? 'flex-1 flex flex-col justify-between' : 'wrapper'}">
         {/* Navigation */}
         <header className="${isTailwind ? 'border-b border-zinc-800/80 bg-[#09090b]/80 backdrop-blur sticky top-0 z-50' : 'brand'}">
           <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-14 flex items-center justify-between' : ''}">
@@ -700,7 +700,7 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   <title>{{ title }}</title>
   ${headAssets}
 </head>
-<body class="${isTailwind ? 'bg-black text-zinc-100 min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
+<body class="${isTailwind ? 'bg-[#09090b] text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
   {!! slot !!}
   {!! after !!}${bodyScripts}
 </body>
@@ -711,7 +711,7 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   // 7. views/welcome.html (Tailwind or Pure CSS)
   const welcomeContent = isTailwind
     ? `<x-layouts.app title="{{ title }}">
-  <div class="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between selection:bg-zinc-800 selection:text-white">
+  <div class="flex-1 flex flex-col justify-between">
     <!-- Navigation -->
     <header class="border-b border-zinc-800/80 bg-[#09090b]/80 backdrop-blur sticky top-0 z-50">
       <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
