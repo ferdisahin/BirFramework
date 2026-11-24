@@ -496,38 +496,125 @@ ${viteHead}
 export default function Welcome(props: { title: string; version: string; nodeVersion: string }) {
   return (
     <Layout title={props.title}>
-      <div className="${isTailwind ? 'max-w-4xl mx-auto px-6 py-12 flex-1 flex flex-col justify-between w-full' : 'wrapper'}">
-        <header className="${isTailwind ? 'flex items-center justify-between pb-8 border-b border-zinc-900' : ''}">
-          <div className="${isTailwind ? 'flex items-center gap-2 font-semibold tracking-tight text-white' : 'brand'}">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-            <span>BirJS (BirFramework)</span>
+      <div className="${isTailwind ? 'min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between selection:bg-emerald-500/20 selection:text-emerald-400' : 'wrapper'}">
+        {/* Top Navbar */}
+        <header className="${isTailwind ? 'border-b border-zinc-900/80 bg-zinc-950/60 backdrop-blur sticky top-0 z-50' : 'brand'}">
+          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-16 flex items-center justify-between' : ''}">
+            <div className="${isTailwind ? 'flex items-center gap-3 font-semibold tracking-tight text-white' : ''}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400' : ''}">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+              <span className="text-base font-bold">BirJS</span>
+              <span className="${isTailwind ? 'text-xs px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono' : ''}">
+                v{props.version}
+              </span>
+            </div>
+            <nav className="${isTailwind ? 'flex items-center gap-6 text-sm text-zinc-400' : ''}">
+              <a href="https://birjs.com" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">Documentation</a>
+              <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="${isTailwind ? 'hover:text-white transition flex items-center gap-1.5' : ''}">
+                <span>GitHub</span>
+                <span className="text-zinc-600">&rarr;</span>
+              </a>
+            </nav>
           </div>
-          <nav className="${isTailwind ? 'flex items-center gap-6 text-sm text-zinc-400' : ''}">
-            <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">GitHub</a>
-            <a href="https://birjs.com" target="_blank" className="${isTailwind ? 'hover:text-white transition' : ''}">Documentation</a>
-          </nav>
         </header>
 
-        <main className="${isTailwind ? 'my-auto py-16' : ''}">
-          <div className="${isTailwind ? 'space-y-4 max-w-xl' : ''}">
-            <div className="${isTailwind ? 'inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs bg-zinc-900 border border-zinc-800 text-zinc-300' : ''}">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span>BirJS v{props.version} &bull; TSX Engine</span>
+        {/* Hero & Getting Started */}
+        <main className="${isTailwind ? 'max-w-6xl mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full' : ''}">
+          {/* Badge */}
+          <div className="${isTailwind ? 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 w-fit mb-6 font-medium' : ''}">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>BirJS v{props.version} &bull; TypeScript Artisans</span>
+          </div>
+
+          {/* Heading */}
+          <h1 className="${isTailwind ? 'text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1]' : ''}">
+            The full-stack framework for TypeScript artisans.
+          </h1>
+
+          <p className="${isTailwind ? 'mt-5 text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed' : 'lead'}">
+            Laravel ergonomics paired with persistent-memory V8 speed. ActiveRecord ORM, background queues, real-time WebSockets, and zero-bundle server components.
+          </p>
+
+          {/* Quick Start Guidance Box */}
+          <div className="${isTailwind ? 'mt-8 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4' : ''}">
+            <div className="${isTailwind ? 'flex items-center gap-3 text-xs text-zinc-300 font-mono' : ''}">
+              <span className="text-emerald-400 font-bold">$</span>
+              <span>Edit <code className="${isTailwind ? 'text-white bg-zinc-800 px-1.5 py-0.5 rounded' : ''}">app/controllers/HomeController.${jsxExt}</code> to get started</span>
             </div>
-            <h1 className="${isTailwind ? 'text-4xl sm:text-5xl font-extrabold tracking-tight text-white' : ''}">
-              Type-Safe JSX Server Components.
-            </h1>
-            <p className="${isTailwind ? 'text-zinc-400 text-base leading-relaxed' : 'lead'}">
-              React-style functional components rendered on the server with zero client bundle overhead and sub-millisecond V8 execution.
-            </p>
+            <a
+              href="https://birjs.com/docs/installation"
+              target="_blank"
+              className="${isTailwind ? 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 transition shrink-0' : ''}"
+            >
+              Read Docs &rarr;
+            </a>
+          </div>
+
+          {/* 4 Feature Cards */}
+          <div className="${isTailwind ? 'grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12' : 'grid'}">
+            <a href="https://birjs.com/docs/routing" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
+                ⚡
+              </div>
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+                Routing & Views
+                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+              </h2>
+              <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
+                Define expressive routes, controllers, middleware, and type-safe server components.
+              </p>
+            </a>
+
+            <a href="https://birjs.com/docs/models" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
+                🗄️
+              </div>
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+                ActiveRecord ORM
+                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+              </h2>
+              <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
+                Multi-driver database connectivity, schema migrations, seeders, and factories.
+              </p>
+            </a>
+
+            <a href="https://birjs.com/docs/queues" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
+                📬
+              </div>
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+                Queues & Jobs
+                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+              </h2>
+              <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
+                Asynchronous background job dispatching, retries, and task scheduling daemons.
+              </p>
+            </a>
+
+            <a href="https://birjs.com/docs/events" target="_blank" className="${isTailwind ? 'group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition' : 'card'}">
+              <div className="${isTailwind ? 'w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition' : ''}">
+                📡
+              </div>
+              <h2 className="${isTailwind ? 'text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between' : ''}">
+                Real-Time WebSockets
+                <span className="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+              </h2>
+              <p className="${isTailwind ? 'text-xs text-zinc-500 mt-2 leading-relaxed' : ''}">
+                Native channel-based WebSocket broadcasting and real-time event distribution.
+              </p>
+            </a>
           </div>
         </main>
 
-        <footer className="${isTailwind ? 'pt-8 border-t border-zinc-900 flex items-center justify-between text-xs text-zinc-600' : ''}">
-          <div>Node.js {props.nodeVersion}</div>
-          <div>MIT Licensed</div>
+        {/* Footer */}
+        <footer className="${isTailwind ? 'border-t border-zinc-900/80 bg-zinc-950/40' : ''}">
+          <div className="${isTailwind ? 'max-w-6xl mx-auto px-6 h-14 flex items-center justify-between text-xs text-zinc-500' : ''}">
+            <div>Node.js {props.nodeVersion} &bull; BirFramework v{props.version}</div>
+            <div>MIT Licensed &bull; Built with BirJS</div>
+          </div>
         </footer>
       </div>
     </Layout>
@@ -567,46 +654,66 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   // 7. views/welcome.html (Tailwind or Pure CSS)
   const welcomeContent = isTailwind
     ? `<x-layouts.app title="{{ title }}">
-  <div class="max-w-4xl mx-auto px-6 py-12 flex-1 flex flex-col justify-between w-full">
-    <!-- Top Bar -->
-    <header class="flex items-center justify-between pb-8 border-b border-zinc-900">
-      <div class="flex items-center gap-2 font-semibold tracking-tight text-white">
-        <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-        <span>BirJS (BirFramework)</span>
+  <div class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between selection:bg-emerald-500/20 selection:text-emerald-400">
+    <!-- Top Navbar -->
+    <header class="border-b border-zinc-900/80 bg-zinc-950/60 backdrop-blur sticky top-0 z-50">
+      <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3 font-semibold tracking-tight text-white">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </div>
+          <span class="text-base font-bold">BirJS</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
+            v{{ version }}
+          </span>
+        </div>
+        <nav class="flex items-center gap-6 text-sm text-zinc-400">
+          <a href="https://birjs.com" target="_blank" class="hover:text-white transition">Documentation</a>
+          <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition flex items-center gap-1.5">
+            <span>GitHub</span>
+            <span class="text-zinc-600">&rarr;</span>
+          </a>
+        </nav>
       </div>
-      <nav class="flex items-center gap-6 text-sm text-zinc-400">
-        <a href="https://github.com/ferdisahin/BirFramework" target="_blank" class="hover:text-white transition">GitHub</a>
-        <a href="https://birjs.com" target="_blank" class="hover:text-white transition">Documentation</a>
-      </nav>
     </header>
 
-    <!-- Main Content -->
-    <main class="my-auto py-16">
-      <div class="space-y-4 max-w-xl">
-        <h1 class="text-3xl font-semibold tracking-tight text-white">
-          Get started with your application
-        </h1>
-        <p class="text-zinc-400 text-sm leading-relaxed">
-          To begin building your application, edit <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">routes/web.${ext}</code> or the home controller at <code class="text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs font-mono">app/controllers/HomeController.${ext}</code>.
-        </p>
+    <!-- Hero & Getting Started -->
+    <main class="max-w-6xl mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 w-fit mb-6 font-medium">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>BirJS v{{ version }} &bull; TypeScript Artisans</span>
       </div>
 
-      <!-- Quick Links Grid -->
-      <div class="grid sm:grid-cols-2 gap-4 mt-12">
-        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
-          <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
-            Documentation
-            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
-          </h2>
-          <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
-            API reference, configuration options, and architectural guides.
-          </p>
-        </a>
+      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1]">
+        The full-stack framework for TypeScript artisans.
+      </h1>
 
-        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
-          <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
+      <p class="mt-5 text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed">
+        Laravel ergonomics paired with persistent-memory V8 speed. ActiveRecord ORM, background queues, real-time WebSockets, and server-rendered Blade templates.
+      </p>
+
+      <div class="mt-8 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3 text-xs text-zinc-300 font-mono">
+          <span class="text-emerald-400 font-bold">$</span>
+          <span>Edit <code class="text-white bg-zinc-800 px-1.5 py-0.5 rounded">routes/web.${ext}</code> to get started</span>
+        </div>
+        <a
+          href="https://birjs.com/docs/installation"
+          target="_blank"
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 transition shrink-0"
+        >
+          Read Docs &rarr;
+        </a>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+        <a href="https://birjs.com/docs/routing" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
+          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
+            ⚡
+          </div>
+          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
             Routing & Views
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
           </h2>
@@ -615,9 +722,12 @@ export default function Welcome(props: { title: string; version: string; nodeVer
           </p>
         </a>
 
-        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
-          <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
-            Database & ORM
+        <a href="https://birjs.com/docs/models" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
+          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
+            🗄️
+          </div>
+          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+            ActiveRecord ORM
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
@@ -625,25 +735,39 @@ export default function Welcome(props: { title: string; version: string; nodeVer
           </p>
         </a>
 
-        <a href="https://birjs.com" target="_blank" class="group p-5 rounded-lg border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 transition">
-          <h2 class="text-sm font-medium text-white group-hover:text-zinc-200 flex items-center justify-between">
-            Queues & Scheduler
+        <a href="https://birjs.com/docs/queues" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
+          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
+            📬
+          </div>
+          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+            Queues & Jobs
             <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
           </h2>
           <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
             Dispatch background workers, handle failed jobs, and schedule cron tasks.
           </p>
         </a>
+
+        <a href="https://birjs.com/docs/events" target="_blank" class="group p-5 rounded-xl border border-zinc-900 bg-zinc-900/20 hover:border-zinc-800 hover:bg-zinc-900/40 transition">
+          <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-3 group-hover:border-zinc-700 transition">
+            📡
+          </div>
+          <h2 class="text-sm font-semibold text-white group-hover:text-emerald-400 transition flex items-center justify-between">
+            Real-Time WebSockets
+            <span class="text-zinc-600 group-hover:text-zinc-400 transition">&rarr;</span>
+          </h2>
+          <p class="text-xs text-zinc-500 mt-2 leading-relaxed">
+            Native channel-based WebSocket broadcasting and real-time event distribution.
+          </p>
+        </a>
       </div>
     </main>
 
     <!-- Footer -->
-    <footer class="pt-8 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
-      <div>
-        BirJS (BirFramework) v{{ version }}
-      </div>
-      <div>
-        Node.js {{ nodeVersion }}
+    <footer class="border-t border-zinc-900/80 bg-zinc-950/40">
+      <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between text-xs text-zinc-500">
+        <div>Node.js {{ nodeVersion }} &bull; BirFramework v{{ version }}</div>
+        <div>MIT Licensed &bull; Built with BirJS</div>
       </div>
     </footer>
   </div>
