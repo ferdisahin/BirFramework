@@ -7,6 +7,8 @@ export class ScheduleEvent {
   private specificHour?: number;
   private specificMinute?: number;
   private lastRunAt: number = 0;
+  private preventOverlap: boolean = false;
+  private isRunning: boolean = false;
 
   constructor(callback: ScheduledTask, description?: string) {
     this.callback = callback;
@@ -61,7 +63,19 @@ export class ScheduleEvent {
     return this;
   }
 
+  /**
+   * Prevent this scheduled task from overlapping if a previous execution is still running.
+   */
+  public withoutOverlapping(): this {
+    this.preventOverlap = true;
+    return this;
+  }
+
   public isDue(date: Date = new Date()): boolean {
+    if (this.preventOverlap && this.isRunning) {
+      return false;
+    }
+
     const nowTimestamp = Math.floor(date.getTime() / 1000);
 
     // If specific time of day is required (dailyAt)
@@ -81,7 +95,16 @@ export class ScheduleEvent {
   }
 
   public async run(): Promise<void> {
+    if (this.preventOverlap && this.isRunning) {
+      return;
+    }
+
+    this.isRunning = true;
     this.lastRunAt = Math.floor(Date.now() / 1000);
-    await this.callback();
+    try {
+      await this.callback();
+    } finally {
+      this.isRunning = false;
+    }
   }
 }

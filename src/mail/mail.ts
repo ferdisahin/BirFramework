@@ -1,4 +1,4 @@
-import { type MailDriver, LogMailDriver, ArrayMailDriver, type OutgoingEmail } from './drivers.js';
+import { type MailDriver, LogMailDriver, ArrayMailDriver, type OutgoingEmail, type MailAttachment } from './drivers.js';
 import { Mailable } from './mailable.js';
 
 function sanitizeEmailHeader(str?: string): string {
@@ -20,12 +20,13 @@ export class PendingMail {
     return this.manager.send(mailable);
   }
 
-  public async raw(content: string, options: { subject: string; from?: string }): Promise<boolean> {
+  public async raw(content: string, options: { subject: string; from?: string; attachments?: MailAttachment[] }): Promise<boolean> {
     const email: OutgoingEmail = {
       to: this.recipient,
       from: sanitizeEmailHeader(options.from || process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'),
       subject: sanitizeEmailHeader(options.subject),
       html: content,
+      attachments: options.attachments,
       sentAt: new Date(),
     };
     return this.manager.getDriver().send(email);
@@ -61,6 +62,7 @@ export class MailManager {
       fromName: sanitizeEmailHeader(mailable.fromName),
       subject: sanitizeEmailHeader(mailable.subjectText),
       html,
+      attachments: mailable.attachmentsList.length > 0 ? mailable.attachmentsList : undefined,
       sentAt: new Date(),
     };
 

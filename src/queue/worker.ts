@@ -81,7 +81,8 @@ export class QueueWorker {
       console.error(`\x1b[31m[Queue]\x1b[0m Failed:     ${jobRecord.name} - ${err.message}`);
 
       if (attempts >= maxTries) {
-        console.error(`\x1b[31m[Queue]\x1b[0m Max attempts (${maxTries}) reached. Discarding job #${jobRecord.id}.`);
+        console.error(`\x1b[31m[Queue]\x1b[0m Max attempts (${maxTries}) reached. Moving job #${jobRecord.id} to failed_jobs.`);
+        await Queue.recordFailedJob(jobRecord, err?.stack || err?.message || 'Unknown error');
         await dbConnection.execute(`DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ?;`, [jobRecord.id]);
       } else {
         // Retry with backoff (e.g. 5 seconds delay)

@@ -11,6 +11,15 @@ export interface JobRecord {
   created_at: string;
 }
 
+export interface FailedJobRecord {
+  id: number;
+  queue: string;
+  name: string;
+  payload: string;
+  exception: string;
+  failed_at: string;
+}
+
 export class QueueManager {
   private jobRegistry = new Map<string, new (...args: any[]) => Job>();
 
@@ -41,6 +50,60 @@ export class QueueManager {
         ${q}created_at${q} ${textType} NOT NULL
       );
     `);
+
+    await dbConnection.exec(`
+      CREATE TABLE IF NOT EXISTS ${q}_failed_jobs${q} (
+        ${q}id${q} ${idDef},
+        ${q}queue${q} ${textType} NOT NULL,
+        ${q}name${q} ${textType} NOT NULL,
+        ${q}payload${q} ${longTextType} NOT NULL,
+        ${q}exception${q} ${longTextType} NOT NULL,
+        ${q}failed_at${q} ${textType} NOT NULL
+      );
+    `);
+  }
+
+  public async recordFailedJob(jobRecord: JobRecord, exception: string): Promise<number> {
+    await this.ensureQueueTable();
+    const q = dbConnection.dialect === 'postgres' ? '"' : '`';
+    const result = await dbConnection.execute(
+      `INSERT INTO ${q}_failed_jobs${q} (${q}queue${q}, ${q}name${q}, ${q}payload${q}, ${q}exception${q}, ${q}failed_at${q}) VALUES (?, ?, ?, ?, ?);`,
+      [jobRecord.queue, jobRecord.name, jobRecord.payload, exception, new Date().toISOString()]
+    );
+    return Number(result.lastInsertRowid);
+  }
+
+  public async getFailedJobs(): Promise<FailedJobRecord[]> {
+    await this.ensureQueueTable();
+    const q = dbConnection.dialect === 'postgres' ? '"' : '`';
+    return dbConnection.query<FailedJobRecord>(`SELECT * FROM ${q}_failed_jobs${q} ORDER BY ${q}id${q} DESC;`);
+  }
+
+  public async retryFailedJob(idOrAll: number | 'all' = 'all'): Promise<number> {
+    await this.ensureQueueTable();
+    const q = dbConnection.dialect === 'postgres' ? '"' : '`';
+    const failed = idOrAll === 'all'
+      ? await this.getFailedJobs()
+      : await dbConnection.query<FailedJobRecord>(`SELECT * FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [idOrAll]);
+
+    if (failed.length === 0) return 0;
+
+    const now = Math.floor(Date.now() / 1000);
+    for (const item of failed) {
+      await dbConnection.execute(
+        `INSERT INTO ${q}_jobs${q} (${q}queue${q}, ${q}name${q}, ${q}payload${q}, ${q}attempts${q}, ${q}available_at${q}, ${q}created_at${q}) VALUES (?, ?, ?, 0, ?, ?);`,
+        [item.queue, item.name, item.payload, now, new Date().toISOString()]
+      );
+      await dbConnection.execute(`DELETE FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [item.id]);
+    }
+    return failed.length;
+  }
+
+  public async flushFailedJobs(): Promise<number> {
+    await this.ensureQueueTable();
+    const q = dbConnection.dialect === 'postgres' ? '"' : '`';
+    const res = await dbConnection.execute(`DELETE FROM ${q}_failed_jobs${q};`);
+    return Number(res.changes);
   }
 
   public async push(job: Job): Promise<number> {

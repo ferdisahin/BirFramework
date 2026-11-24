@@ -1,3 +1,10 @@
+export interface MailAttachment {
+  filename: string;
+  content?: Buffer | string;
+  path?: string;
+  contentType?: string;
+}
+
 export interface OutgoingEmail {
   to: string;
   from: string;
@@ -5,6 +12,7 @@ export interface OutgoingEmail {
   subject: string;
   html: string;
   text?: string;
+  attachments?: MailAttachment[];
   sentAt: Date;
 }
 
@@ -19,6 +27,9 @@ export class LogMailDriver implements MailDriver {
     console.log(`│ \x1b[1mFrom:\x1b[0m    ${email.fromName ? `${email.fromName} <${email.from}>` : email.from}`);
     console.log(`│ \x1b[1mSubject:\x1b[0m ${email.subject}`);
     console.log(`│ \x1b[1mDate:\x1b[0m    ${email.sentAt.toISOString()}`);
+    if (email.attachments && email.attachments.length > 0) {
+      console.log(`│ \x1b[1mFiles:\x1b[0m   ${email.attachments.map((a) => a.filename).join(', ')}`);
+    }
     console.log('├──────────────────────────────────────────────────────────────────────────┤');
     console.log(`│ ${email.html.replace(/\n/g, '\n│ ')}`);
     console.log('\x1b[36m└──────────────────────────────────────────────────────────────────────────┘\x1b[0m\n');

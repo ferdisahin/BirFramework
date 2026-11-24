@@ -7,6 +7,7 @@ import { runPail } from './commands/pail.js';
 import { defaultRouter } from '../router/router.js';
 import { migrator } from '../database/migrator.js';
 import { worker } from '../queue/worker.js';
+import { Queue } from '../queue/queue.js';
 import { Schedule } from '../schedule/schedule.js';
 import { SeederRunner } from '../database/seeder.js';
 import { VERSION } from '../version.js';
@@ -199,6 +200,29 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       const queue = args.includes('--queue') ? args[args.indexOf('--queue') + 1] : 'default';
       const once = args.includes('--once');
       await worker.work({ queue, once });
+      break;
+    }
+
+    case 'queue:failed': {
+      const failed = await Queue.getFailedJobs();
+      if (failed.length === 0) {
+        console.log('\x1b[32m✔ No failed jobs found.\x1b[0m');
+      } else {
+        console.table(failed.map((j) => ({ id: j.id, queue: j.queue, name: j.name, failed_at: j.failed_at })));
+      }
+      break;
+    }
+
+    case 'queue:retry': {
+      const target = args[1] && args[1] !== 'all' ? Number(args[1]) : 'all';
+      const count = await Queue.retryFailedJob(target);
+      console.log(`\x1b[32m✔ Re-queued ${count} failed job(s).\x1b[0m`);
+      break;
+    }
+
+    case 'queue:flush': {
+      const count = await Queue.flushFailedJobs();
+      console.log(`\x1b[33m✔ Flushed ${count} failed job(s).\x1b[0m`);
       break;
     }
 
