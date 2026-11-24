@@ -305,6 +305,32 @@ export class Application {
     });
   }
 
+  private shutdownHooked = false;
+
+  /**
+   * Register SIGINT / SIGTERM handlers to close active HTTP connections gracefully.
+   */
+  public enableGracefulShutdown(onShutdown?: () => Promise<void> | void): this {
+    if (this.shutdownHooked) return this;
+    this.shutdownHooked = true;
+
+    const handleSignal = async (signal: string) => {
+      console.log(`\n\x1b[33m[BirJS]\x1b[0m Received ${signal}. Closing server gracefully...`);
+      try {
+        await this.close();
+        if (onShutdown) await onShutdown();
+        process.exit(0);
+      } catch (err) {
+        console.error('[BirJS] Error during graceful shutdown:', err);
+        process.exit(1);
+      }
+    };
+
+    process.once('SIGINT', () => void handleSignal('SIGINT'));
+    process.once('SIGTERM', () => void handleSignal('SIGTERM'));
+    return this;
+  }
+
   /**
    * Export a serverless HTTP handler compatible with Vercel, AWS Lambda, Netlify, etc.
    * Automatically resolves serverless URL rewrites (x-matched-path) and unhandled errors.

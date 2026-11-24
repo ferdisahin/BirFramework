@@ -1,5 +1,7 @@
 export * from './core/application.js';
 export * from './core/provider.js';
+export * from './core/config.js';
+export * from './core/request-context.js';
 export * from './router/index.js';
 export * from './http/index.js';
 export * from './container/index.js';
