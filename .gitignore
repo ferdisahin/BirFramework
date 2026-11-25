@@ -10,10 +10,9 @@ dist
 *.sqlite3
 *.db
 
-# AI assistant rules & metadata
+# AI assistant metadata (ignore local workspace settings, keep template rules)
 .gemini
 .cursor
-.cursorrules
 .claude
 .idea
 .vscode

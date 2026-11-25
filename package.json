@@ -41,7 +41,9 @@
   "files": [
     "dist",
     "bin",
-    "README.md"
+    "README.md",
+    "BIRFRAMEWORK_RULES.md",
+    ".cursorrules"
   ],
   "scripts": {
     "build": "tsc",
