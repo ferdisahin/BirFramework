@@ -162,47 +162,174 @@ export async function createNewProject(
   if (isHotwire) {
     mkdirSync(join(projectDir, 'resources/js'), { recursive: true });
     if (isJsx) {
-      mkdirSync(join(projectDir, 'views/islands'), { recursive: true });
-      writeFileSync(join(projectDir, 'views/islands/.gitkeep'), '', 'utf-8');
-    }
+      mkdirSync(join(projectDir, 'views/pages'), { recursive: true });
+      mkdirSync(join(projectDir, 'views/components'), { recursive: true });
 
-    const islandHydrator = isJsx
-      ? `import { render, h } from 'preact';
+      const inertiaClientContent = `import { createContext, h, render, hydrate } from 'preact';
+import { useContext, useEffect, useState } from 'preact/hooks';
 
-const islands = import.meta.glob('../../views/islands/*.tsx');
-
-async function mountIslands() {
-  const nodes = document.querySelectorAll('[data-bir-island]');
-  for (const el of nodes) {
-    if (el.dataset.birMounted) continue;
-    const name = el.getAttribute('data-bir-island');
-    const modLoader = islands[\`../../views/islands/\${name}.tsx\`];
-    if (!modLoader) continue;
-    const mod = await modLoader();
-    const Component = mod.default || mod[name];
-    if (typeof Component === 'function') {
-      const rawProps = el.getAttribute('data-bir-props');
-      const props = rawProps ? JSON.parse(rawProps) : {};
-      el.dataset.birMounted = 'true';
-      el.innerHTML = '';
-      render(h(Component, props), el);
-    }
-  }
+export interface PageData<T = Record<string, any>> {
+  component: string;
+  props: T;
+  url: string;
 }
 
-document.addEventListener('DOMContentLoaded', mountIslands);
-document.addEventListener('turbo:load', mountIslands);`
-      : '';
+const PageContext = createContext<PageData>({ component: '', props: {}, url: '/' });
 
-    const jsImports =
-      [
-        isTailwind ? "import '../css/app.css';" : '',
-        "import * as Turbo from '@hotwired/turbo';",
-        islandHydrator,
-      ]
-        .filter(Boolean)
-        .join('\n') + '\n';
-    writeFileSync(join(projectDir, 'resources/js/app.js'), jsImports, 'utf-8');
+export function usePage<T = Record<string, any>>(): PageData<T> {
+  return useContext(PageContext) as PageData<T>;
+}
+
+let activeVisit: ((url: string, options?: { method?: string; data?: any; replace?: boolean }) => Promise<void>) | null = null;
+
+export const router = {
+  visit(url: string, options?: { method?: string; data?: any; replace?: boolean }) {
+    if (activeVisit) return activeVisit(url, options);
+    window.location.href = url;
+    return Promise.resolve();
+  },
+  get(url: string) {
+    return this.visit(url, { method: 'GET' });
+  },
+  post(url: string, data?: any) {
+    return this.visit(url, { method: 'POST', data });
+  },
+  put(url: string, data?: any) {
+    return this.visit(url, { method: 'PUT', data });
+  },
+  delete(url: string) {
+    return this.visit(url, { method: 'DELETE' });
+  },
+};
+
+export function Link({ href, className, children, ...rest }: any) {
+  const onClick = (e: MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    router.visit(href);
+  };
+  return (
+    <a href={href} onClick={onClick} className={className} {...rest}>
+      {children}
+    </a>
+  );
+}
+
+export async function createBirApp({
+  resolve,
+}: {
+  resolve: (name: string) => Promise<any>;
+}) {
+  const el = document.getElementById('app');
+  if (!el) return;
+
+  const rawPage = el.getAttribute('data-page');
+  if (!rawPage) return;
+
+  const initialPage: PageData = JSON.parse(rawPage);
+  const initialMod = await resolve(initialPage.component);
+  const InitialComponent = initialMod.default;
+
+  function AppShell() {
+    const [page, setPage] = useState<PageData>(initialPage);
+    const [Component, setComponent] = useState<any>(() => InitialComponent);
+
+    useEffect(() => {
+      activeVisit = async (url: string, options = {}) => {
+        const method = (options.method || 'GET').toUpperCase();
+        const headers: Record<string, string> = {
+          'X-Bir-Inertia': 'true',
+          Accept: 'application/json',
+        };
+        const init: RequestInit = { method, headers };
+        if (options.data !== undefined && method !== 'GET') {
+          headers['Content-Type'] = 'application/json';
+          init.body = JSON.stringify(options.data);
+        }
+
+        const res = await fetch(url, init);
+        if (res.status === 409) {
+          const redirectLoc = res.headers.get('X-Bir-Inertia-Location');
+          if (redirectLoc) window.location.href = redirectLoc;
+          return;
+        }
+        if (!res.ok) {
+          window.location.href = url;
+          return;
+        }
+
+        const nextPage: PageData = await res.json();
+        const mod = await resolve(nextPage.component);
+        setComponent(() => mod.default);
+        setPage(nextPage);
+
+        if (options.replace) {
+          window.history.replaceState(nextPage, '', nextPage.url);
+        } else {
+          window.history.pushState(nextPage, '', nextPage.url);
+        }
+        window.scrollTo({ top: 0 });
+      };
+
+      const onPopState = async (event: PopStateEvent) => {
+        if (event.state?.component) {
+          const mod = await resolve(event.state.component);
+          setComponent(() => mod.default);
+          setPage(event.state);
+        } else {
+          await activeVisit?.(window.location.pathname + window.location.search, { replace: true });
+        }
+      };
+
+      window.history.replaceState(initialPage, '', initialPage.url);
+      window.addEventListener('popstate', onPopState);
+      return () => {
+        window.removeEventListener('popstate', onPopState);
+      };
+    }, []);
+
+    return (
+      <PageContext.Provider value={page}>
+        {h(Component, page.props)}
+      </PageContext.Provider>
+    );
+  }
+
+  if (el.innerHTML.trim().length > 0) {
+    hydrate(<AppShell />, el);
+  } else {
+    render(<AppShell />, el);
+  }
+}
+`;
+      writeFileSync(join(projectDir, 'resources/js/bir-inertia.tsx'), inertiaClientContent, 'utf-8');
+
+      const appTsxContent = `${isTailwind ? "import '../css/app.css';\n" : ''}import { createBirApp } from './bir-inertia';
+
+const pages = import.meta.glob('../../views/pages/**/*.tsx');
+
+createBirApp({
+  resolve: async (name) => {
+    const normalized = name.replace(/\\./g, '/');
+    const loader = pages[\`../../views/pages/\${normalized}.tsx\`];
+    if (!loader) {
+      throw new Error(\`[BirJS] Page component not found: views/pages/\${normalized}.tsx\`);
+    }
+    return loader();
+  },
+});
+`;
+      writeFileSync(join(projectDir, 'resources/js/app.tsx'), appTsxContent, 'utf-8');
+    } else {
+      const jsImports =
+        [
+          isTailwind ? "import '../css/app.css';" : '',
+          "import * as Turbo from '@hotwired/turbo';",
+        ]
+          .filter(Boolean)
+          .join('\n') + '\n';
+      writeFileSync(join(projectDir, 'resources/js/app.js'), jsImports, 'utf-8');
+    }
   }
 
   // 1. package.json scripts & dependencies
@@ -227,6 +354,7 @@ document.addEventListener('turbo:load', mountIslands);`
     devDependencies['concurrently'] = '^9.1.0';
     if (isJsx) {
       dependencies['preact'] = '^10.25.0';
+      dependencies['preact-render-to-string'] = '^6.5.11';
       devDependencies['@preact/preset-vite'] = '^2.9.0';
     }
     if (isTailwind) {
@@ -243,7 +371,7 @@ document.addEventListener('turbo:load', mountIslands);`
 
     const inputs: string[] = [];
     if (isTailwind) inputs.push("'resources/css/app.css'");
-    inputs.push("'resources/js/app.js'");
+    inputs.push(isJsx ? "'resources/js/app.tsx'" : "'resources/js/app.js'");
 
     const viteConfigContent = `import { defineConfig } from 'vite';
 ${isTailwind ? "import tailwindcss from '@tailwindcss/vite';\n" : ''}${isJsx ? "import preact from '@preact/preset-vite';\n" : ''}
@@ -320,7 +448,7 @@ export default defineConfig({
         esModuleInterop: true,
         skipLibCheck: true,
         jsx: 'react-jsx',
-        jsxImportSource: 'birframework',
+        jsxImportSource: isJsx && isHotwire ? 'preact' : 'birframework',
         baseUrl: '.',
         paths: {
           '@/*': ['./*'],
@@ -361,13 +489,14 @@ Route.get('/api/health', (ctx) => {
   writeFileSync(join(projectDir, `routes/web.${ext}`), routesContent, 'utf-8');
 
   // 4. app/controllers/HomeController.[ts|js]
+  const renderMethod = isJsx && isHotwire ? 'inertia' : 'render';
   const controllerContent = isJsx
     ? (isTS
       ? `import type { Context } from 'birframework';
 
 export class HomeController {
   public async index(ctx: Context) {
-    return ctx.render('Welcome', {
+    return ctx.${renderMethod}('Welcome', {
       title: 'BirJS',
       version: '${VERSION}',
       nodeVersion: process.version,
@@ -377,7 +506,7 @@ export class HomeController {
 `
       : `export class HomeController {
   async index(ctx) {
-    return ctx.render('Welcome', {
+    return ctx.${renderMethod}('Welcome', {
       title: 'BirJS',
       version: '${VERSION}',
       nodeVersion: process.version,
@@ -743,6 +872,99 @@ export default function Welcome(props: { title: string; version: string; nodeVer
 }
 `;
     writeFileSync(join(projectDir, `views/Welcome.${jsxExt}`), jsxWelcome, 'utf-8');
+
+    if (isHotwire) {
+      const preactPageWelcome = `${isTS ? "import { useState } from 'preact/hooks';\n\n" : "import { useState } from 'preact/hooks';\n\n"}export default function Welcome(props${isTS ? ': { title: string; version: string; nodeVersion: string }' : ''}) {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between">
+      <header className="border-b border-zinc-800/80 bg-[#09090b]/80 backdrop-blur sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <span className="text-sm font-semibold tracking-tight text-white">BirJS</span>
+            <span className="text-[11px] px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/70 text-zinc-400 font-mono">
+              v{props.version}
+            </span>
+          </div>
+          <nav className="flex items-center gap-5 text-xs text-zinc-400">
+            <a href="https://birjs.com" target="_blank" className="hover:text-white transition-colors">Documentation</a>
+            <a href="https://github.com/ferdisahin/BirFramework" target="_blank" className="hover:text-white transition-colors">GitHub</a>
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 transition-colors cursor-pointer"
+            >
+              Stack Info
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-20 flex-1 flex flex-col justify-center w-full">
+        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] bg-zinc-900 border border-zinc-800 text-zinc-300 w-fit mb-6 font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>BirJS v{props.version} &bull; Unified Preact + SSR</span>
+        </div>
+
+        <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white max-w-3xl leading-[1.08]">
+          The full-stack framework for TypeScript artisans.
+        </h1>
+
+        <p className="mt-5 text-base sm:text-lg text-zinc-400 max-w-2xl leading-relaxed font-normal">
+          Laravel backend ergonomics paired with a unified Preact + SSR frontend. One TSX standard across your entire app.
+        </p>
+
+        <div className="mt-8 p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800/80 max-w-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 text-xs text-zinc-300 font-mono">
+            <span className="text-zinc-500 select-none">$</span>
+            <span>Edit <code className="text-white bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-mono text-[11px]">views/pages/Welcome.${jsxExt}</code> to get started</span>
+          </div>
+          <a
+            href="https://birjs.com/docs/installation"
+            target="_blank"
+            className="text-xs font-medium px-3 py-1.5 rounded bg-zinc-100 hover:bg-white text-zinc-950 transition-colors shrink-0"
+          >
+            Read Docs
+          </a>
+        </div>
+      </main>
+
+      <footer className="border-t border-zinc-800/80 bg-[#09090b]/40">
+        <div className="max-w-6xl mx-auto px-6 h-12 flex items-center justify-between text-xs text-zinc-500">
+          <div>Node.js {props.nodeVersion} &bull; BirFramework v{props.version}</div>
+          <div>MIT Licensed</div>
+        </div>
+      </footer>
+
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onClick={() => setModalOpen(false)}>
+          <div className="w-full max-w-md rounded-xl bg-zinc-950 border border-zinc-800 p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-sm font-semibold text-white">Unified Full-Stack Architecture</h2>
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+              This modal is powered by client-side Preact state, hydrated seamlessly over BirJS server-rendered HTML.
+            </p>
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="mt-5 px-3 py-1.5 rounded bg-white text-zinc-950 text-xs font-medium cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+      writeFileSync(join(projectDir, `views/pages/Welcome.${jsxExt}`), preactPageWelcome, 'utf-8');
+    }
   } else {
     // 6. views/layouts/app.html
     let headAssets = '';

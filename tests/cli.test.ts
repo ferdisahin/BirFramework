@@ -72,15 +72,15 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       await createNewProject('test-hotwire-app', 'ts', 'tailwind', 'hotwire');
 
       assert.strictEqual(existsSync(resolve(testHotwireApp, 'package.json')), true);
-      assert.strictEqual(existsSync(resolve(testHotwireApp, 'resources/js/app.js')), true);
+      assert.strictEqual(existsSync(resolve(testHotwireApp, 'resources/js/app.tsx')), true);
       assert.strictEqual(existsSync(resolve(testHotwireApp, 'vite.config.js')), true);
 
       const pkg = JSON.parse(readFileSync(resolve(testHotwireApp, 'package.json'), 'utf-8'));
-      assert.ok(pkg.dependencies['@hotwired/turbo']);
+      assert.ok(pkg.dependencies['preact']);
       assert.ok(pkg.devDependencies['vite']);
 
-      const jsContent = readFileSync(resolve(testHotwireApp, 'resources/js/app.js'), 'utf-8');
-      assert.match(jsContent, /@hotwired\/turbo/);
+      const tsxContent = readFileSync(resolve(testHotwireApp, 'resources/js/app.tsx'), 'utf-8');
+      assert.match(tsxContent, /createBirApp/);
 
       const layoutTsx = readFileSync(resolve(testHotwireApp, 'views/layouts/Layout.tsx'), 'utf-8');
       assert.match(layoutTsx, /<Vite/);

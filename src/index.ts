@@ -23,6 +23,7 @@ export * from './errors/index.js';
 export * from './broadcasting/index.js';
 export * from './jsx/index.js';
 export * from './logging/log.js';
+export * from './inertia/index.js';
 export * from './version.js';
 
 

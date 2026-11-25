@@ -9,6 +9,7 @@ import { Validator, type ValidationRules, type FormRequest } from '../validation
 import { UploadedFile } from './uploaded-file.js';
 import { parseMultipart } from './multipart.js';
 import { __, Lang } from '../localization/translator.js';
+import { Inertia, type InertiaRenderOptions } from '../inertia/index.js';
 
 export interface CookieOptions {
   maxAge?: number;
@@ -275,6 +276,17 @@ export class Context {
   public async renderJsx(element: any, statusCode?: number): Promise<void> {
     const html = await renderToHtml(element);
     this.html(html, statusCode);
+  }
+
+  /**
+   * Render a unified Full-Stack Inertia + SSR Preact page
+   */
+  public async inertia(
+    component: string,
+    props: Record<string, any> = {},
+    options: InertiaRenderOptions = {}
+  ): Promise<void> {
+    await Inertia.render(this, component, props, options);
   }
 
   /**

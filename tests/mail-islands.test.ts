@@ -67,19 +67,20 @@ describe('ResendMailDriver & Preact Islands Tests', () => {
     assert.ok(html.includes('data-bir-props="{&quot;userId&quot;:42,&quot;role&quot;:&quot;admin&quot;}"'));
   });
 
-  test('createNewProject scaffolds Preact Islands when jsx + hotwire are selected', async () => {
+  test('createNewProject scaffolds Unified Preact + Inertia stack when jsx + hotwire are selected', async () => {
     await createNewProject('test-island-app', 'ts', 'tailwind', 'hotwire', 'jsx');
 
     const pkg = JSON.parse(readFileSync(resolve(tempProject, 'package.json'), 'utf-8'));
     assert.ok(pkg.dependencies['preact']);
+    assert.ok(pkg.dependencies['preact-render-to-string']);
     assert.ok(pkg.devDependencies['@preact/preset-vite']);
 
-    assert.strictEqual(existsSync(resolve(tempProject, 'views/islands/.gitkeep')), true);
+    assert.strictEqual(existsSync(resolve(tempProject, 'views/pages/Welcome.tsx')), true);
+    assert.strictEqual(existsSync(resolve(tempProject, 'resources/js/bir-inertia.tsx')), true);
 
-    const appJs = readFileSync(resolve(tempProject, 'resources/js/app.js'), 'utf-8');
-    assert.ok(appJs.includes('mountIslands'));
-    assert.ok(appJs.includes('data-bir-island'));
-    assert.ok(appJs.includes("el.innerHTML = ''"));
+    const appTsx = readFileSync(resolve(tempProject, 'resources/js/app.tsx'), 'utf-8');
+    assert.ok(appTsx.includes('createBirApp'));
+    assert.ok(appTsx.includes('views/pages'));
 
     const viteCfg = readFileSync(resolve(tempProject, 'vite.config.js'), 'utf-8');
     assert.ok(viteCfg.includes('@preact/preset-vite'));
