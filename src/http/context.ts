@@ -1,9 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { defaultViewEngine, type ViewEngine } from '../view/engine.js';
-import { renderToHtml, renderToString, isValidElement } from '../jsx/index.js';
+import { resolve } from 'node:path';
+import { renderPreactView, type PreactView } from '../view/preact.js';
+import type { VNode } from 'preact';
 import type { Session } from '../auth/session.js';
 import { Validator, type ValidationRules, type FormRequest } from '../validation/index.js';
 import { UploadedFile } from './uploaded-file.js';
@@ -41,7 +39,6 @@ export class Context {
   private _cachedBody: any = null;
   private _files: Record<string, UploadedFile[]> = {};
   private _rawBodyBuffer: Buffer | null = null;
-  private _statusCode: number = 200;
   private _headers: Record<string, string | string[]> = {};
 
   constructor(
@@ -91,7 +88,6 @@ export class Context {
   }
 
   public status(code: number): this {
-    this._statusCode = code;
     this.res.statusCode = code;
     return this;
   }
@@ -214,69 +210,15 @@ export class Context {
     this.res.end();
   }
 
-  /**
-   * Render a view template (.bir, .html, .tsx, .jsx) or JSX/TSX element with data
-   */
-  public render(templateOrJsx: any, data: Record<string, any> = {}, statusCode?: number): void | Promise<void> {
-    if (isValidElement(templateOrJsx) || typeof templateOrJsx === 'function') {
-      const element = typeof templateOrJsx === 'function' ? templateOrJsx(data) : templateOrJsx;
-      const htmlPromise = renderToHtml(element);
-      if (htmlPromise instanceof Promise) {
-        return htmlPromise.then((html) => {
-          this.html(html, statusCode);
-        });
-      } else {
-        this.html(htmlPromise, statusCode);
-        return;
-      }
-    }
-
-    if (typeof templateOrJsx === 'string') {
-      const jsxPath = this.resolveJsxViewPath(templateOrJsx);
-      if (jsxPath) {
-        return import(pathToFileURL(jsxPath).href).then(async (mod) => {
-          const Component = mod.default || Object.values(mod).find((v) => typeof v === 'function');
-          if (typeof Component !== 'function') {
-            throw new Error(`View component [${templateOrJsx}] does not export a default or named function component.`);
-          }
-          const html = await renderToHtml(Component(data));
-          this.html(html, statusCode);
-        });
-      }
-    }
-
-    const compiled = defaultViewEngine.render(templateOrJsx, data);
-    this.html(compiled, statusCode);
+  /** Render a Preact component, VNode, or named .tsx/.jsx view. */
+  public async render<Props extends Record<string, any> = Record<string, any>>(
+    view: PreactView<Props>, props: Props = {} as Props, statusCode?: number
+  ): Promise<void> {
+    this.html(await renderPreactView(view, props), statusCode);
   }
 
-  /**
-   * Resolve a string view name (e.g. 'Home', 'admin.Users', 'admin/Users') to a .tsx or .jsx file if present
-   */
-  private resolveJsxViewPath(viewName: string): string | null {
-    if (!viewName || viewName.includes('\0') || viewName.includes('..')) {
-      return null;
-    }
-
-    const viewsRoot = resolve(defaultViewEngine.getViewsDir() || resolve(process.cwd(), 'views'));
-    const stripped = viewName.replace(/\.(tsx|jsx)$/i, '');
-    const normalized = stripped.replace(/\./g, '/').replace(/^\/+/, '');
-
-    for (const ext of ['.tsx', '.jsx']) {
-      const candidate = resolve(viewsRoot, `${normalized}${ext}`);
-      if (candidate.startsWith(viewsRoot + sep) && existsSync(candidate)) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Explicit helper to render a JSX/TSX element or component directly to HTML response
-   */
-  public async renderJsx(element: any, statusCode?: number): Promise<void> {
-    const html = await renderToHtml(element);
-    this.html(html, statusCode);
+  public async renderJsx(element: VNode<any>, statusCode?: number): Promise<void> {
+    await this.render(element, {}, statusCode);
   }
 
   /**

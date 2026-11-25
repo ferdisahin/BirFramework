@@ -162,13 +162,13 @@ export class SchemaBuilder {
   public async hasTable(tableName: string): Promise<boolean> {
     if (this.connection.dialect === 'postgres') {
       const row = await this.connection.queryOne(
-        `SELECT tablename FROM pg_catalog.pg_tables WHERE tablename = $1;`,
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = ?;`,
         [tableName]
       );
       return Boolean(row);
     } else if (this.connection.dialect === 'mysql') {
       const row = await this.connection.queryOne(
-        `SHOW TABLES LIKE ?;`,
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?;`,
         [tableName]
       );
       return Boolean(row);

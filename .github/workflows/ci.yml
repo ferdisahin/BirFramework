@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:package
+
+  databases:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: birtest
+          POSTGRES_PASSWORD: birtest
+          POSTGRES_DB: birtest
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U birtest -d birtest" --health-interval 5s --health-timeout 3s --health-retries 15
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: birtest-root
+          MYSQL_DATABASE: birtest
+          MYSQL_USER: birtest
+          MYSQL_PASSWORD: birtest
+        ports:
+          - 3306:3306
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false pg mysql2
+      - run: npm run build
+      - run: npm run test:databases
+        env:
+          BIR_TEST_DIALECT: postgres
+          BIR_TEST_DATABASE_URL: postgres://birtest:birtest@127.0.0.1:5432/birtest
+      - run: npm run test:databases
+        env:
+          BIR_TEST_DIALECT: mysql
+          BIR_TEST_DATABASE_URL: mysql://birtest:birtest@127.0.0.1:3306/birtest

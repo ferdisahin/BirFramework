@@ -1,6 +1,6 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { Lang, __, defaultViewEngine, Context } from '../src/index.js';
+import { Lang, __, Context } from '../src/index.js';
 
 describe('BirFramework Localization & i18n Tests', () => {
   beforeEach(() => {
@@ -46,15 +46,6 @@ describe('BirFramework Localization & i18n Tests', () => {
 
     // Should fallback to en
     assert.strictEqual(__('only_in_english'), 'English Only Text');
-  });
-
-  test('Blade ViewEngine renders __() helper and @lang directive', () => {
-    Lang.setLocale('tr');
-    const template = '<h1>@lang("hello")</h1><p>{{ __("welcome", { name: "Zeynep" }) }}</p>';
-    const compiled = defaultViewEngine.compile(template);
-
-    assert.ok(compiled.includes('<h1>Merhaba Dünya</h1>'));
-    assert.ok(compiled.includes('<p>Hoş geldiniz, Zeynep!</p>'));
   });
 
   test('Context detects locale from query parameter and translates', () => {

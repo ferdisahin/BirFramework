@@ -68,45 +68,49 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.match(welcomeJsx, /HomeController\.js/);
   });
 
-  test('should scaffold project with Hotwire Turbo when chosen', async () => {
-    const testHotwireApp = resolve(process.cwd(), 'test-hotwire-app');
+  test('should scaffold the Inertia profile when chosen', async () => {
+    const testInertiaApp = resolve(process.cwd(), 'test-inertia-app');
     try {
-      await createNewProject('test-hotwire-app', 'ts', 'tailwind', 'hotwire');
+      await createNewProject('test-inertia-app', 'ts', 'tailwind', 'inertia');
 
-      assert.strictEqual(existsSync(resolve(testHotwireApp, 'package.json')), true);
-      assert.strictEqual(existsSync(resolve(testHotwireApp, 'resources/js/app.tsx')), true);
-      assert.strictEqual(existsSync(resolve(testHotwireApp, 'vite.config.js')), true);
+      assert.strictEqual(existsSync(resolve(testInertiaApp, 'package.json')), true);
+      assert.strictEqual(existsSync(resolve(testInertiaApp, 'resources/js/app.tsx')), true);
+      assert.strictEqual(existsSync(resolve(testInertiaApp, 'vite.config.js')), true);
 
-      const pkg = JSON.parse(readFileSync(resolve(testHotwireApp, 'package.json'), 'utf-8'));
+      const pkg = JSON.parse(readFileSync(resolve(testInertiaApp, 'package.json'), 'utf-8'));
       assert.ok(pkg.dependencies['preact']);
       assert.ok(pkg.devDependencies['vite']);
+      assert.ok(pkg.devDependencies['@preact/preset-vite']);
+      assert.ok(existsSync(resolve(testInertiaApp, 'views/pages/Welcome.tsx')));
+      assert.ok(existsSync(resolve(testInertiaApp, 'resources/js/bir-inertia.tsx')));
 
-      const tsxContent = readFileSync(resolve(testHotwireApp, 'resources/js/app.tsx'), 'utf-8');
+      const tsxContent = readFileSync(resolve(testInertiaApp, 'resources/js/app.tsx'), 'utf-8');
       assert.match(tsxContent, /createBirApp/);
 
-      const layoutTsx = readFileSync(resolve(testHotwireApp, 'views/layouts/Layout.tsx'), 'utf-8');
+      const layoutTsx = readFileSync(resolve(testInertiaApp, 'views/layouts/Layout.tsx'), 'utf-8');
       assert.match(layoutTsx, /<Vite/);
     } finally {
-      if (existsSync(testHotwireApp)) {
-        rmSync(testHotwireApp, { recursive: true, force: true });
+      if (existsSync(testInertiaApp)) {
+        rmSync(testInertiaApp, { recursive: true, force: true });
       }
     }
   });
 
-  test('should scaffold project with None navigation engine when chosen', async () => {
-    const testNoneApp = resolve(process.cwd(), 'test-none-app');
+  test('should scaffold server-rendered JSX without Vite', async () => {
+    const testServerRenderedApp = resolve(process.cwd(), 'test-server-rendered-app');
     try {
-      await createNewProject('test-none-app', 'ts', 'tailwind', 'none');
+      await createNewProject('test-server-rendered-app', 'ts', 'tailwind', 'server-rendered');
 
-      const pkg = JSON.parse(readFileSync(resolve(testNoneApp, 'package.json'), 'utf-8'));
-      assert.strictEqual(pkg.dependencies['@hotwired/turbo'], undefined);
+      const pkg = JSON.parse(readFileSync(resolve(testServerRenderedApp, 'package.json'), 'utf-8'));
+      assert.ok(pkg.dependencies['preact']);
+      assert.strictEqual(existsSync(resolve(testServerRenderedApp, 'vite.config.js')), false);
 
-      const layoutTsx = readFileSync(resolve(testNoneApp, 'views/layouts/Layout.tsx'), 'utf-8');
+      const layoutTsx = readFileSync(resolve(testServerRenderedApp, 'views/layouts/Layout.tsx'), 'utf-8');
       assert.doesNotMatch(layoutTsx, /<Vite/);
       assert.match(layoutTsx, /\/css\/app\.css/);
     } finally {
-      if (existsSync(testNoneApp)) {
-        rmSync(testNoneApp, { recursive: true, force: true });
+      if (existsSync(testServerRenderedApp)) {
+        rmSync(testServerRenderedApp, { recursive: true, force: true });
       }
     }
   });
@@ -170,28 +174,19 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     }
   });
 
-  test('should scaffold component and folder component with companion JS via makeComponent', async () => {
-    const { makeComponent } = await import('../src/cli/commands/make.js');
-    const flatFile = resolve(process.cwd(), 'views/components/badge.bir');
-    const folderDir = resolve(process.cwd(), 'views/components/testmodal');
-    const folderBir = resolve(folderDir, 'testmodal.bir');
-    const folderJs = resolve(folderDir, 'testmodal.js');
-
+  test('should scaffold a Preact component and Inertia page', async () => {
+    const { makeComponent, makeView } = await import('../src/cli/commands/make.js');
+    await createNewProject('test-component-app', 'js', 'css', 'inertia');
+    const original = process.cwd();
     try {
-      // 1. Flat component
-      makeComponent('badge');
-      assert.strictEqual(existsSync(flatFile), true);
-      assert.match(readFileSync(flatFile, 'utf-8'), /class="badge"/);
-
-      // 2. Folder component with companion JS (-j)
-      makeComponent('testmodal', true);
-      assert.strictEqual(existsSync(folderBir), true);
-      assert.strictEqual(existsSync(folderJs), true);
-      assert.match(readFileSync(folderJs, 'utf-8'), /export default function/);
-      assert.match(readFileSync(folderJs, 'utf-8'), /el\.querySelector/);
+      process.chdir(resolve('test-component-app'));
+      makeComponent('ProductCard');
+      makeView('Products.Index');
+      assert.match(readFileSync('views/components/ProductCard.jsx', 'utf-8'), /@jsxImportSource preact/);
+      assert.match(readFileSync('views/pages/Products/Index.jsx', 'utf-8'), /export default function Index/);
     } finally {
-      if (existsSync(flatFile)) rmSync(flatFile, { force: true });
-      if (existsSync(folderDir)) rmSync(folderDir, { recursive: true, force: true });
+      process.chdir(original);
+      rmSync('test-component-app', { recursive: true, force: true });
     }
   });
 });

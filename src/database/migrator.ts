@@ -1,10 +1,19 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { SchemaBuilder } from './schema.js';
+import { SqliteDriver } from './drivers/sqlite.js';
 import { dbConnection, type DatabaseConnection } from './connection.js';
 
 export abstract class Migration {
   abstract up(): Promise<void> | void;
   abstract down(): Promise<void> | void;
+}
+
+export interface MigrationStatus {
+  name: string;
+  status: 'applied' | 'pending' | 'missing';
+  batch: number | null;
 }
 
 export class Migrator {
@@ -34,10 +43,36 @@ export class Migrator {
 
   public async getExecutedMigrations(): Promise<{ name: string; batch: number }[]> {
     await this.ensureMigrationsTable();
+    return this.readHistory();
+  }
+
+  private readHistory(): Promise<{ name: string; batch: number }[]> {
     const q = this.connection.dialect === 'postgres' ? '"' : '`';
     return this.connection.query<{ name: string; batch: number }>(
       `SELECT ${q}name${q}, ${q}batch${q} FROM ${q}_migrations${q} ORDER BY ${q}id${q} ASC;`
     );
+  }
+
+  private listFiles(): string[] {
+    if (!existsSync(this.migrationsDir)) return [];
+    return readdirSync(this.migrationsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.(?:js|ts)$/.test(entry.name) && !entry.name.endsWith('.d.ts'))
+      .map((entry) => entry.name)
+      .sort();
+  }
+
+  public async status(): Promise<MigrationStatus[]> {
+    const driver = this.connection.getDriver();
+    const hasDatabase = !(driver instanceof SqliteDriver) || driver.hasDatabaseFile();
+    const hasHistory = hasDatabase && await new SchemaBuilder(this.connection).hasTable('_migrations');
+    const history = new Map(hasHistory ? (await this.readHistory()).map((row) => [row.name, row.batch]) : []);
+    const status: MigrationStatus[] = this.listFiles().map((name) => {
+      const batch = history.get(name);
+      history.delete(name);
+      return { name, status: batch === undefined ? 'pending' : 'applied', batch: batch ?? null };
+    });
+    for (const [name, batch] of history) status.push({ name, status: 'missing', batch });
+    return status;
   }
 
   public async getNextBatchNumber(): Promise<number> {
@@ -58,9 +93,7 @@ export class Migrator {
     const executed = await this.getExecutedMigrations();
     const executedNames = new Set(executed.map((m) => m.name));
 
-    const files = readdirSync(this.migrationsDir)
-      .filter((f) => f.endsWith('.ts') || f.endsWith('.js'))
-      .sort();
+    const files = this.listFiles();
 
     const pending = files.filter((f) => !executedNames.has(f));
     if (pending.length === 0) {
@@ -73,7 +106,7 @@ export class Migrator {
 
     for (const file of pending) {
       const fullPath = join(this.migrationsDir, file);
-      const mod = await import(fullPath);
+      const mod = await import(pathToFileURL(fullPath).href);
       let migration: any = mod.default || mod;
 
       if (typeof migration === 'function') {
@@ -109,21 +142,23 @@ export class Migrator {
       [lastBatch]
     );
 
-    const rolledBack: string[] = [];
-    for (const record of toRollback) {
-      const fullPath = join(this.migrationsDir, record.name);
-      if (existsSync(fullPath)) {
-        const mod = await import(fullPath);
-        let migration: any = mod.default || mod;
-        if (typeof migration === 'function') {
-          migration = new migration();
-        }
-        if (typeof migration.down === 'function') {
-          await migration.down();
-        }
+    const available = new Set(this.listFiles());
+    const migrations = await Promise.all(toRollback.map(async ({ name }) => {
+      if (!available.has(name)) throw new Error(`[BirDatabase] Cannot roll back missing migration: ${name}`);
+      const mod = await import(pathToFileURL(join(this.migrationsDir, name)).href);
+      const exported = mod.default || mod;
+      const migration = typeof exported === 'function' ? new exported() : exported;
+      if (typeof migration.down !== 'function') {
+        throw new Error(`[BirDatabase] Migration has no down() method: ${name}`);
       }
-      await this.connection.execute(`DELETE FROM ${q}_migrations${q} WHERE ${q}name${q} = ?;`, [record.name]);
-      rolledBack.push(record.name);
+      return { name, migration };
+    }));
+
+    const rolledBack: string[] = [];
+    for (const { name, migration } of migrations) {
+      await migration.down();
+      await this.connection.execute(`DELETE FROM ${q}_migrations${q} WHERE ${q}name${q} = ?;`, [name]);
+      rolledBack.push(name);
     }
 
     return rolledBack;

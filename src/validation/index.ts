@@ -1,4 +1,3 @@
-import type { Context } from '../http/context.js';
 import { dbConnection } from '../database/connection.js';
 
 export type ValidationRule = string | ((value: any, data: Record<string, any>) => Promise<boolean | string> | boolean | string);

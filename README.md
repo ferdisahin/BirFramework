@@ -38,11 +38,19 @@ Headless flags are also supported:
 
 ```bash
 # TypeScript + Tailwind CSS v4 + Preact + Inertia + Vite
-npx birframework new my-app --ts --tailwind --jsx
+npx birframework new my-app --ts --tailwind --inertia
 
 # JavaScript (ESM) with Pure CSS
-npx birframework new my-app --js --css
+npx birframework new my-app --js --css --server-rendered
 ```
+
+Preact powers both profiles. Use `--inertia` for Vite and client-side navigation, or `--server-rendered` for Preact-rendered HTML responses without a Vite client.
+
+### Migrating legacy views
+
+Convert `.bir` and legacy HTML templates to Preact `.tsx` or `.jsx` components. For an Inertia page, place it under `views/pages` and call `ctx.inertia('Page', props)`. For a server-rendered view, call `ctx.render('Page', props)` with the file under `views/`, or pass a Preact component or VNode. Use JSX children for slots and import components directly.
+
+Set `jsxImportSource` to `preact` and import JSX primitives, hooks and VNodes from Preact. The framework's former JSX runtime and Blade-style compiler have been removed. Form helpers such as `Csrf` and `Flash` in `birframework/jsx` now return Preact VNodes. Email templates can use `return this.view(Component, props)` from `Mailable.content()`. Remove any old BirTurbo template directives during migration.
 
 ### 2. Project Structure
 
@@ -117,6 +125,8 @@ npx bir make:vercel
 
 This configures `api/index.js` with `compress()`, `serveStatic({ publicDir: 'public' })`, `Inertia.middleware()`, and `export default app.serverless()`. Set a random `APP_KEY` in your Vercel Environment Variables for production deployments.
 
+A minimal [Vercel deployment example](examples/vercel) also shows how to export the HTTP handler without opening a listening socket.
+
 ## CLI Reference
 
 ```bash
@@ -124,7 +134,8 @@ This configures `api/index.js` with `compress()`, `serveStatic({ publicDir: 'pub
 npx birframework new <name>     Create a new application
 bir dev                         Start Server, Queue, Logs, and Vite dashboard
 bir serve                       Start development server with hot-reload
-bir route:list                  Display all registered application routes
+bir route:list                  Load routes/web.ts or routes/web.js and display its routes
+bir doctor                      Check local runtime, database setup and frontend assets
 bir pail                        Stream structured application logs
 
 # Code Generators
@@ -140,6 +151,7 @@ bir make:vercel                 Generate vercel.json and api/index.js
 
 # Database Operations
 bir migrate                     Execute pending database migrations
+bir migrate:status              Show pending, applied and missing migrations
 bir migrate:rollback            Roll back the last migration batch
 bir db:seed                     Run database seeders
 
@@ -192,6 +204,12 @@ BirFramework uses Node's native test runner:
 ```bash
 npm test
 ```
+
+### Package and database checks
+
+`npm run build && npm run test:package` packs the local build, installs the tarball into fresh TypeScript and JavaScript starters, and exercises CLI, migrations and HTTP. It also tests the Vercel example handler over loopback.
+
+CI runs the database smoke test against PostgreSQL and MySQL. To run it locally, provide `BIR_TEST_DIALECT` and `BIR_TEST_DATABASE_URL` for a **disposable** database named `birtest`, install `pg` and `mysql2` locally, and run `npm run test:databases` after building. The smoke test recreates its migration, session and queue tables in that database.
 
 ## License
 

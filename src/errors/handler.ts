@@ -1,8 +1,6 @@
 import type { Context } from '../http/context.js';
-import { defaultViewEngine } from '../view/engine.js';
 import { DebugScreen } from './debug-screen.js';
 import { StackParser } from './stack-parser.js';
-import { VERSION } from '../version.js';
 
 function escapeHtml(str: any): string {
   return String(str ?? '')
@@ -17,7 +15,7 @@ export class ErrorHandler {
   /**
    * Handle 404 Not Found
    */
-  public static handleNotFound(ctx: Context): void {
+  public static async handleNotFound(ctx: Context): Promise<void> {
     const wantsHtml =
       ctx.headers['accept']?.includes('text/html') &&
       !ctx.headers['accept']?.includes('application/json') &&
@@ -25,14 +23,13 @@ export class ErrorHandler {
       ctx.path !== '/api';
 
     if (wantsHtml) {
-      // Try rendering user-defined views/errors/404.html
+      // Try rendering user-defined views/errors/404.tsx
       try {
-        const rendered = defaultViewEngine.render('errors/404', {
+        await ctx.render('errors/404', {
           title: '404 - Page Not Found',
           path: ctx.path,
           method: ctx.method,
-        });
-        ctx.html(rendered, 404);
+        }, 404);
         return;
       } catch {
         // Fallback to built-in BirFramework 404 page
@@ -96,11 +93,10 @@ export class ErrorHandler {
     if (err?.name === 'AuthorizationError') {
       if (wantsHtml) {
         try {
-          const rendered = defaultViewEngine.render('errors/403', {
+          await ctx.render('errors/403', {
             title: '403 - Forbidden',
             message: err.message,
-          });
-          ctx.html(rendered, 403);
+          }, 403);
           return;
         } catch {
           ctx.html(this.renderBuiltin403(err.message), 403);
@@ -136,10 +132,9 @@ export class ErrorHandler {
     if (isProduction) {
       if (wantsHtml) {
         try {
-          const rendered = defaultViewEngine.render('errors/500', {
+          await ctx.render('errors/500', {
             title: '500 - Server Error',
-          });
-          ctx.html(rendered, 500);
+          }, 500);
           return;
         } catch {
           ctx.html(this.renderBuiltin500(), 500);

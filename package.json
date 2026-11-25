@@ -25,14 +25,6 @@
     "./jsx": {
       "import": "./dist/jsx/index.js",
       "types": "./dist/jsx/index.d.ts"
-    },
-    "./jsx-runtime": {
-      "import": "./dist/jsx/jsx-runtime.js",
-      "types": "./dist/jsx/jsx-runtime.d.ts"
-    },
-    "./jsx-dev-runtime": {
-      "import": "./dist/jsx/jsx-dev-runtime.js",
-      "types": "./dist/jsx/jsx-dev-runtime.d.ts"
     }
   },
   "bin": {
@@ -51,7 +43,9 @@
     "prepublishOnly": "npm run build && npm test",
     "bump": "node scripts/bump.js",
     "bir": "tsx src/cli/index.ts",
-    "dev:example": "tsx example/app.ts"
+    "dev:example": "tsx example/app.ts",
+    "test:package": "node scripts/smoke-package.mjs",
+    "test:databases": "node scripts/smoke-databases.mjs"
   },
   "keywords": [
     "framework",
@@ -74,5 +68,9 @@
     "@types/node": "^22.13.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "preact": "^10.25.0",
+    "preact-render-to-string": "^6.5.11"
   }
 }

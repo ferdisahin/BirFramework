@@ -1,11 +1,13 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent, makeView, makeIsland } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent, makeView } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
 import { runTinker } from './commands/tinker.js';
 import { runPail } from './commands/pail.js';
+import { runDoctor } from './commands/doctor.js';
 import { defaultRouter } from '../router/router.js';
 import { migrator } from '../database/migrator.js';
+import { dbConnection } from '../database/connection.js';
 import { worker } from '../queue/worker.js';
 import { Queue } from '../queue/queue.js';
 import { Schedule } from '../schedule/schedule.js';
@@ -16,6 +18,19 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+
+function findLocalFile(candidates: string[]): string | undefined {
+  return candidates.find((file) => existsSync(resolve(file)));
+}
+
+async function withCliDatabase<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } finally {
+    await dbConnection.close();
+  }
+}
 
 export async function runCLI(args: string[] = process.argv.slice(2)) {
   process.on('SIGINT', () => {
@@ -24,11 +39,24 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
   });
 
   const command = args[0] || 'help';
+  if (['new', 'make:component', 'make:view', 'make:auth', 'auth:scaffold'].includes(command) && args.includes('--blade')) {
+    throw new Error('[BirCLI] Blade templates have been removed. Use Preact .tsx/.jsx views.');
+  }
 
   switch (command) {
     case 'serve':
     case 'start': {
-      const port = args.includes('--port') ? args[args.indexOf('--port') + 1] : '3000';
+      const portIndex = args.indexOf('--port');
+      const port = portIndex === -1 ? process.env.PORT || '3000' : args[portIndex + 1];
+      if (!port || !/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+        throw new Error('[BirCLI] --port must be an integer between 1 and 65535.');
+      }
+
+      const entry = findLocalFile([
+        'app.ts', 'app.js', 'src/app.ts', 'src/app.js', 'example/app.ts', 'index.ts', 'index.js',
+      ]);
+      if (!entry) throw new Error('[BirCLI] Application entry file not found (app.ts or app.js).');
+
       console.log('\n\x1b[1m\x1b[35m' +
 `  ____  _       ______                                           _    
  |  _ \\(_)     |  ____|                                         | |   
@@ -41,35 +69,39 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log(`\x1b[36m  ➜ Local:   http://localhost:${port}\x1b[0m`);
       console.log(`\x1b[90m  ➜ Press Ctrl+C to stop\x1b[0m\n`);
 
-      const candidates = ['app.ts', 'src/app.ts', 'example/app.ts', 'index.ts'];
-      const entry = candidates.find((f) => existsSync(resolve(process.cwd(), f)));
-
-      if (!entry) {
-        console.error('\x1b[31m[Error]\x1b[0m Application entry file not found (app.ts or example/app.ts).');
-        process.exit(1);
+      const useTsx = entry.endsWith('.ts') || existsSync(resolve('tsconfig.json'));
+      let launcher = process.execPath;
+      let watchArgs = ['--watch', entry];
+      if (useTsx) {
+        try {
+          watchArgs = [createRequire(resolve('package.json')).resolve('tsx/cli'), 'watch', entry];
+        } catch {
+          launcher = 'npx';
+          watchArgs = ['tsx', 'watch', entry];
+        }
       }
-
-      const child = spawn('npx', ['tsx', 'watch', entry], {
+      const child = spawn(launcher, watchArgs, {
         stdio: 'inherit',
         env: { ...process.env, PORT: port },
       });
 
-      child.on('exit', (code: number | null) => {
-        process.exit(code || 0);
+      child.once('error', (error) => {
+        console.error('[BirCLI] Could not start the server:', error.message);
+        process.exitCode = 1;
+      });
+      await new Promise<void>((done) => {
+        child.once('close', (code, signal) => {
+          if (code !== null) process.exitCode = code;
+          else if (signal !== 'SIGINT' && signal !== 'SIGTERM') process.exitCode = 1;
+          done();
+        });
       });
       break;
     }
 
     case 'route:list': {
-      const candidates = ['app.ts', 'src/app.ts', 'example/app.ts'];
-      const entry = candidates.find((f) => existsSync(resolve(process.cwd(), f)));
-      if (entry) {
-        try {
-          await import(resolve(process.cwd(), entry));
-        } catch {
-          // ignore error if importing dynamically
-        }
-      }
+      const routeFile = findLocalFile(['routes/web.ts', 'routes/web.js', 'src/routes/web.ts', 'src/routes/web.js']);
+      if (routeFile) await import(pathToFileURL(resolve(routeFile)).href);
       listRoutes(defaultRouter);
       break;
     }
@@ -145,24 +177,22 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
     }
 
     case 'make:component': {
-      const withJs = args.includes('-j') || args.includes('--js');
-      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
+      if (args.includes('-j') || args.includes('--js')) {
+        throw new Error('[BirCLI] Companion scripts have been removed. Add behavior inside the Preact component.');
+      }
       const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
-      makeComponent(name, withJs, jsx);
+      makeComponent(name);
       break;
     }
 
     case 'make:view': {
-      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
       const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
-      makeView(name, jsx);
+      makeView(name);
       break;
     }
 
     case 'make:island': {
-      const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
-      makeIsland(name);
-      break;
+      throw new Error('[BirCLI] make:island has been removed. Use a Preact component in views/pages with the Inertia profile.');
     }
 
     case 'make:vercel': {
@@ -171,13 +201,13 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
     }
 
     case 'db:seed': {
-      await SeederRunner.run();
+      await withCliDatabase(() => SeederRunner.run());
       break;
     }
 
     case 'migrate': {
       console.log('\x1b[36m⏳ Running migrations...\x1b[0m');
-      const executed = await migrator.run();
+      const executed = await withCliDatabase(() => migrator.run());
       if (executed.length === 0) {
         console.log('\x1b[33mNothing to migrate. Database is up to date.\x1b[0m');
       } else {
@@ -189,9 +219,21 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       break;
     }
 
+    case 'doctor': {
+      if (!(await runDoctor())) process.exitCode = 1;
+      break;
+    }
+
+    case 'migrate:status': {
+      const status = await withCliDatabase(() => migrator.status());
+      if (status.length === 0) console.log('No migrations found.');
+      else console.table(status);
+      break;
+    }
+
     case 'migrate:rollback': {
       console.log('\x1b[36m⏳ Rolling back latest migration batch...\x1b[0m');
-      const rolledBack = await migrator.rollback();
+      const rolledBack = await withCliDatabase(() => migrator.rollback());
       if (rolledBack.length === 0) {
         console.log('\x1b[33mNo migrations to rollback.\x1b[0m');
       } else {
@@ -210,12 +252,12 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       if (bootstrap) await import(pathToFileURL(bootstrap).href);
       const queue = args.includes('--queue') ? args[args.indexOf('--queue') + 1] : 'default';
       const once = args.includes('--once');
-      await worker.work({ queue, once });
+      await withCliDatabase(() => worker.work({ queue, once }));
       break;
     }
 
     case 'queue:failed': {
-      const failed = await Queue.getFailedJobs();
+      const failed = await withCliDatabase(() => Queue.getFailedJobs());
       if (failed.length === 0) {
         console.log('\x1b[32m✔ No failed jobs found.\x1b[0m');
       } else {
@@ -226,13 +268,13 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'queue:retry': {
       const target = args[1] && args[1] !== 'all' ? Number(args[1]) : 'all';
-      const count = await Queue.retryFailedJob(target);
+      const count = await withCliDatabase(() => Queue.retryFailedJob(target));
       console.log(`\x1b[32m✔ Re-queued ${count} failed job(s).\x1b[0m`);
       break;
     }
 
     case 'queue:flush': {
-      const count = await Queue.flushFailedJobs();
+      const count = await withCliDatabase(() => Queue.flushFailedJobs());
       console.log(`\x1b[33m✔ Flushed ${count} failed job(s).\x1b[0m`);
       break;
     }
@@ -249,8 +291,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
 
     case 'make:auth':
     case 'auth:scaffold': {
-      const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
-      scaffoldAuth({ jsx });
+      scaffoldAuth();
       break;
     }
 
@@ -342,16 +383,17 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       const hasTailwind = args.includes('--tailwind');
       const css = hasCss ? 'css' : hasTailwind ? 'tailwind' : undefined;
 
-      const hasHotwire = args.includes('--hotwire');
-      const hasBirTurbo = args.includes('--birturbo') || args.includes('--bir-turbo');
-      const hasNoTurbo = args.includes('--no-turbo') || args.includes('--none');
-      const turbo = hasNoTurbo ? 'none' : hasBirTurbo ? 'birturbo' : hasHotwire ? 'hotwire' : undefined;
-
-      const hasBlade = args.includes('--blade');
-      const hasJsx = args.includes('--jsx') || args.includes('--tsx');
-      const view = hasJsx ? 'jsx' : hasBlade ? 'blade' : undefined;
-
-      await createNewProject(name, lang, css, turbo, view);
+      const obsolete = args.find((arg) => ['--hotwire', '--birturbo', '--bir-turbo'].includes(arg));
+      if (obsolete) {
+        throw new Error(`[BirCLI] ${obsolete} has been removed. Use --inertia or --server-rendered for Preact pages.`);
+      }
+      const inertia = args.includes('--inertia');
+      const serverRendered = ['--server-rendered', '--no-turbo', '--none'].some((flag) => args.includes(flag));
+      if (inertia && serverRendered) {
+        throw new Error('[BirCLI] Choose either --inertia or --server-rendered.');
+      }
+      const profile = inertia ? 'inertia' : serverRendered ? 'server-rendered' : undefined;
+      await createNewProject(name, lang, css, profile);
       break;
     }
 
@@ -367,7 +409,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       '\x1b[0m');
       console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
-      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--no-turbo] [--jsx|--blade]\x1b[0m Create a new project');
+      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--inertia|--server-rendered]\x1b[0m Create a new project');
       console.log('  \x1b[32mdev\x1b[0m                       Start full-stack dev dashboard (Server, Queue, Logs, Vite)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
       console.log('  \x1b[32mpail\x1b[0m                      Live real-time application log stream');
@@ -386,10 +428,12 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       console.log('  \x1b[32mmake:listener <name> [--event]\x1b[0m Scaffold a new Event Listener');
       console.log('  \x1b[32mmake:request <name>\x1b[0m       Scaffold a new Form Request class');
       console.log('  \x1b[32mmake:provider <name>\x1b[0m      Scaffold a new Service Provider class');
-      console.log('  \x1b[32mmake:component <name> [-j]\x1b[0m Scaffold a Blade component (optional -j for companion JS)');
+      console.log('  \x1b[32mmake:component <name>     \x1b[0m Scaffold a Preact component');
       console.log('  \x1b[32mmake:auth\x1b[0m                 Scaffold complete Auth (Model, Controller, Views, Migration)');
       console.log('  \x1b[32mmake:vercel\x1b[0m               Scaffold zero-config Vercel Serverless deployment');
       console.log('  \x1b[32mmigrate\x1b[0m                   Run pending database migrations');
+      console.log('  \x1b[32mdoctor\x1b[0m                          Check the local application setup');
+      console.log('  \x1b[32mmigrate:status\x1b[0m                  List applied, pending and missing migrations');
       console.log('  \x1b[32mmigrate:rollback\x1b[0m          Rollback the latest database migration batch');
       console.log('  \x1b[32mdb:seed\x1b[0m                   Seed the database with records');
       console.log('  \x1b[32mqueue:work [--queue] [--once]\x1b[0m Start the queue worker process');

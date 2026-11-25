@@ -233,15 +233,16 @@ export function makeMail(name: string) {
   ensureDir(targetPath);
 
   const template = `import { Mailable } from 'birframework';
+import { h } from 'preact';
 
 export class ${cleanName} extends Mailable {
-  constructor(public user: any) {
+  constructor(public user: { name: string }) {
     super();
+    this.subject('Welcome');
   }
 
-  public override build(): this {
-    return this.subject('Welcome to our Platform')
-               .view('emails.welcome', { user: this.user });
+  public content(): Promise<string> {
+    return this.view(h('p', null, 'Welcome, ', this.user.name));
   }
 }
 export default ${cleanName};
@@ -559,261 +560,62 @@ export default ${cleanName};
   console.log(`\x1b[32m✔ Service Provider created successfully:\x1b[0m app/providers/${cleanName}.ts`);
 }
 
-function isJsxProject(): boolean {
+function viewExtension(): 'tsx' | 'jsx' {
+  return existsSync(resolve('app.js')) && !existsSync(resolve('app.ts')) ? 'jsx' : 'tsx';
+}
+
+export function makeComponent(name: string) {
+  const cleanName = assertValidName(name.replace(/\.(tsx|jsx)$/, ''));
+  const parts = cleanName.split('/');
+  const base = parts.pop();
+  if (!base || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(base)) {
+    throw new Error('[BirCLI] Use a valid Preact component name.');
+  }
+  const componentName = base.charAt(0).toUpperCase() + base.slice(1);
+  const ext = viewExtension();
+  const location = 'views/components/' + [...parts, componentName].join('/') + '.' + ext;
+  const target = resolve(location);
+  if (existsSync(target)) throw new Error(`[BirCLI] Component already exists: ${location}`);
+  ensureDir(target);
+  const props = ext === 'tsx' ? ': { title?: string; children?: ComponentChildren }' : '';
+  const types = ext === 'tsx' ? "import type { ComponentChildren } from 'preact';\n\n" : '';
+  writeFileSync(target, `/** @jsxImportSource preact */
+${types}export function ${componentName}({ title, children }${props}) {
   return (
-    existsSync(resolve(process.cwd(), 'views/Welcome.tsx')) ||
-    existsSync(resolve(process.cwd(), 'views/layouts/Layout.tsx'))
+    <section>
+      {title && <h2>{title}</h2>}
+      {children}
+    </section>
   );
 }
-
-export function makeComponent(name: string, withJs: boolean = false, jsx?: boolean) {
-  if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify a component name. E.g.: bir make:component modal [-j|--js] [--jsx]');
-    return;
-  }
-  try {
-    assertValidName(name);
-  } catch (err: any) {
-    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
-    return;
-  }
-
-  const useJsx = jsx ?? isJsxProject();
-  const cleanName = name.replace(/\.(bir|html|tsx|jsx)$/, '');
-  const baseName = cleanName.split('/').pop() || cleanName;
-
-  if (useJsx) {
-    const pascalName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-    const parentParts = cleanName.split('/');
-    parentParts[parentParts.length - 1] = pascalName;
-    const componentPath = parentParts.join('/');
-    const targetPath = resolve(process.cwd(), 'views/components', `${componentPath}.tsx`);
-
-    if (existsSync(targetPath)) {
-      console.error(`\x1b[31m[Error]\x1b[0m Component ${componentPath}.tsx already exists!`);
-      return;
-    }
-
-    ensureDir(targetPath);
-
-    const tsxContent = `export interface ${pascalName}Props {
-  title?: string;
-  children?: any;
+`, 'utf-8');
+  console.log(`Component created: ${location}`);
 }
 
-export function ${pascalName}({ title, children }: ${pascalName}Props) {
-  return (
-    <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/40">
-      {title && <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>}
-      <div>{children}</div>
-    </div>
-  );
-}
-`;
-    writeFileSync(targetPath, tsxContent, 'utf-8');
-    console.log(`\x1b[32m✔ TSX Component created successfully:\x1b[0m views/components/${componentPath}.tsx`);
-    console.log(`\x1b[90mUsage: import { ${pascalName} } from '@/views/components/${componentPath}';\x1b[0m`);
-    return;
+export function makeView(name: string) {
+  const cleanName = assertValidName(name.replace(/\.(tsx|jsx)$/, '').replace(/\./g, '/'));
+  const parts = cleanName.split('/');
+  const base = parts.pop();
+  if (!base || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(base)) {
+    throw new Error('[BirCLI] Use a valid Preact component name.');
   }
-
-  if (withJs) {
-    // Co-located folder component: views/components/<name>/<name>.bir and <name>.js
-    const componentDir = resolve(process.cwd(), 'views/components', cleanName);
-    const templatePath = resolve(componentDir, `${baseName}.bir`);
-    const scriptPath = resolve(componentDir, `${baseName}.js`);
-
-    if (existsSync(templatePath)) {
-      console.error(`\x1b[31m[Error]\x1b[0m Component ${cleanName} already exists!`);
-      return;
-    }
-
-    ensureDir(templatePath);
-
-    const templateContent = `<div class="${baseName}">
-  <h3>{{ title || '${baseName}' }}</h3>
-  <div>
-    {!! slot !!}
-  </div>
-</div>
-`;
-
-    const scriptContent = `// ${baseName}.js - Companion script for <x-${cleanName.replace(/\//g, '.')}>
-export default function (el: HTMLElement) {
-  // 'el' is this specific component instance's root DOM element.
-  // Use el.querySelector() instead of document.querySelector() to prevent DOM collisions!
-  console.log('[BirComponent] ${baseName} mounted:', el);
+  const componentName = base.charAt(0).toUpperCase() + base.slice(1);
+  const ext = viewExtension();
+  const inertia = existsSync(resolve('views/pages'));
+  const viewPath = [...parts, componentName].join('/');
+  const location = `views/${inertia ? 'pages/' : ''}${viewPath}.${ext}`;
+  const target = resolve(location);
+  if (existsSync(target)) throw new Error(`[BirCLI] View already exists: ${location}`);
+  ensureDir(target);
+  const props = ext === 'tsx' ? ': { title?: string }' : '';
+  const layout = inertia ? '' : `import { Layout } from '${parts.length ? '../'.repeat(parts.length) : './'}layouts/Layout.${ext}';\n\n`;
+  const main = '<main><h1>{title}</h1></main>';
+  const body = inertia ? main : `<Layout title={title}>${main}</Layout>`;
+  writeFileSync(target, `/** @jsxImportSource preact */
+${layout}export default function ${componentName}({ title = '${componentName}' }${props}) {
+  return ${body};
 }
-`;
-
-    writeFileSync(templatePath, templateContent, 'utf-8');
-    writeFileSync(scriptPath, scriptContent, 'utf-8');
-
-    console.log(`\x1b[32m✔ Component created successfully with companion JavaScript:\x1b[0m`);
-    console.log(`  ➜ views/components/${cleanName}/${baseName}.bir`);
-    console.log(`  ➜ views/components/${cleanName}/${baseName}.js`);
-    console.log(`\x1b[90mUsage in views: <x-${cleanName.replace(/\//g, '.')} />\x1b[0m`);
-  } else {
-    // Single file component: views/components/<name>.bir
-    const targetPath = resolve(process.cwd(), 'views/components', `${cleanName}.bir`);
-
-    if (existsSync(targetPath)) {
-      console.error(`\x1b[31m[Error]\x1b[0m Component ${cleanName} already exists!`);
-      return;
-    }
-
-    ensureDir(targetPath);
-
-    const templateContent = `<div class="${baseName}">
-  <h3>{{ title || '${baseName}' }}</h3>
-  <div>
-    {!! slot !!}
-  </div>
-</div>
-`;
-
-    writeFileSync(targetPath, templateContent, 'utf-8');
-    console.log(`\x1b[32m✔ Component created successfully:\x1b[0m views/components/${cleanName}.bir`);
-    console.log(`\x1b[90mUsage in views: <x-${cleanName.replace(/\//g, '.')} />\x1b[0m`);
-  }
+`, 'utf-8');
+  console.log(`View created: ${location}`);
+  console.log(`Render in controller: return ctx.${inertia ? 'inertia' : 'render'}('${viewPath}');`);
 }
-
-export function makeView(name: string, jsx?: boolean) {
-  if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify a view name. E.g.: bir make:view Dashboard [--jsx]');
-    return;
-  }
-  try {
-    assertValidName(name);
-  } catch (err: any) {
-    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
-    return;
-  }
-
-  const useJsx = jsx ?? isJsxProject();
-  const cleanName = name.replace(/\.(bir|html|tsx|jsx)$/, '').replace(/\./g, '/');
-  const baseName = cleanName.split('/').pop() || cleanName;
-  const pascalName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-
-  if (useJsx) {
-    const parts = cleanName.split('/');
-    parts[parts.length - 1] = pascalName;
-    const viewPath = parts.join('/');
-    const targetPath = resolve(process.cwd(), 'views', `${viewPath}.tsx`);
-
-    if (existsSync(targetPath)) {
-      console.error(`\x1b[31m[Error]\x1b[0m View ${viewPath}.tsx already exists!`);
-      return;
-    }
-
-    ensureDir(targetPath);
-
-    const depth = parts.length - 1;
-    const layoutImport = depth === 0 ? './layouts/Layout.js' : `${'../'.repeat(depth)}layouts/Layout.js`;
-
-    const tsxContent = `/** @jsxImportSource birframework */
-import { Layout } from '${layoutImport}';
-
-export default function ${pascalName}(props: { title?: string }) {
-  return (
-    <Layout title={props.title || '${pascalName}'}>
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <h1 className="text-2xl font-bold text-white">${pascalName}</h1>
-        <p className="text-sm text-zinc-400 mt-2">Rendered via BirJS TSX View Engine.</p>
-      </main>
-    </Layout>
-  );
-}
-`;
-    writeFileSync(targetPath, tsxContent, 'utf-8');
-    console.log(`\x1b[32m✔ TSX View created successfully:\x1b[0m views/${viewPath}.tsx`);
-    console.log(`\x1b[90mRender in controller: return ctx.render('${viewPath}', { title: '${pascalName}' });\x1b[0m`);
-  } else {
-    const targetPath = resolve(process.cwd(), 'views', `${cleanName}.html`);
-
-    if (existsSync(targetPath)) {
-      console.error(`\x1b[31m[Error]\x1b[0m View ${cleanName}.html already exists!`);
-      return;
-    }
-
-    ensureDir(targetPath);
-
-    const htmlContent = `<x-layouts.app title="${pascalName}">
-  <main class="max-w-4xl mx-auto px-6 py-12">
-    <h1 class="text-2xl font-bold text-white">${pascalName}</h1>
-    <p class="text-sm text-zinc-400 mt-2">Rendered via BirJS Blade Engine.</p>
-  </main>
-</x-layouts.app>
-`;
-    writeFileSync(targetPath, htmlContent, 'utf-8');
-    console.log(`\x1b[32m✔ Blade View created successfully:\x1b[0m views/${cleanName}.html`);
-    console.log(`\x1b[90mRender in controller: return ctx.render('${cleanName}');\x1b[0m`);
-  }
-}
-
-export function makeIsland(name: string) {
-  if (!name) {
-    console.error('\x1b[31m[Error]\x1b[0m You must specify an island name. E.g.: bir make:island ProfileModal');
-    return;
-  }
-  try {
-    assertValidName(name);
-  } catch (err: any) {
-    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
-    return;
-  }
-
-  const cleanName = name.replace(/\.(tsx|jsx)$/, '');
-  const pascalName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-  const targetPath = resolve(process.cwd(), 'views/islands', `${pascalName}.tsx`);
-
-  if (existsSync(targetPath)) {
-    console.error(`\x1b[31m[Error]\x1b[0m Island ${pascalName}.tsx already exists!`);
-    return;
-  }
-
-  ensureDir(targetPath);
-
-  const islandContent = `/** @jsxImportSource preact */
-import { useState } from 'preact/hooks';
-
-export interface ${pascalName}Props {
-  label?: string;
-}
-
-export default function ${pascalName}({ label = 'Open ${pascalName}' }: ${pascalName}Props) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-white hover:bg-zinc-800 transition cursor-pointer"
-      >
-        {label}
-      </button>
-
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl bg-zinc-950 border border-zinc-800 p-6 text-white">
-            <h2 className="text-base font-semibold">${pascalName}</h2>
-            <p className="text-xs text-zinc-400 mt-1">Interactive Preact Island mounted cleanly.</p>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="mt-4 px-3 py-1.5 rounded bg-white text-zinc-950 text-xs font-medium cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-`;
-  writeFileSync(targetPath, islandContent, 'utf-8');
-  console.log(`\x1b[32m✔ Preact Island created successfully:\x1b[0m views/islands/${pascalName}.tsx`);
-  console.log(`\x1b[90mUsage in any SSR .tsx view: <Island name="${pascalName}" props={{ label: 'Profile' }} />\x1b[0m`);
-}
-

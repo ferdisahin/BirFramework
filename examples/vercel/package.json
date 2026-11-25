@@ -1,0 +1,8 @@
+{
+  "name": "birframework-vercel-example",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "birframework": "^0.5.28"
+  }
+}

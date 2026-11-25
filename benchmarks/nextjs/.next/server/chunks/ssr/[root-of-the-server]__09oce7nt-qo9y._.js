@@ -1,3 +1,0 @@
-module.exports=[18622,(a,b,c)=>{b.exports=a.x("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js",()=>require("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js"))},83045,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(75837);a.n(d("[project]/benchmarks/nextjs/node_modules/next/dist/client/components/builtin/global-error.js"))},17315,a=>{"use strict";var b=a.i(83045);a.n(b)},20337,function(a){a.n(a.i(17315))},85221,(a,b,c)=>{"use strict";b.exports=a.r(18622)},75837,(a,b,c)=>{"use strict";b.exports=a.r(85221).vendored["react-rsc"].ReactServerDOMTurbopackServer}];
-
-//# sourceMappingURL=%5Broot-of-the-server%5D__09oce7nt-qo9y._.js.map

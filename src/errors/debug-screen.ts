@@ -36,7 +36,7 @@ export class DebugScreen {
       return {
         title: 'View Template Not Found',
         description:
-          'Ensure the view file exists inside the root views/ directory (.tsx, .jsx, .bir, or .html), or scaffold it with the CLI.',
+          'Ensure the view file exists inside the root views/ directory (.tsx or .jsx), or scaffold it with the CLI.',
         code: 'npx bir make:view Home',
       };
     }

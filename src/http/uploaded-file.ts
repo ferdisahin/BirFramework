@@ -1,4 +1,4 @@
-import { extname, join } from 'node:path';
+import { extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { Storage } from '../storage/index.js';
 

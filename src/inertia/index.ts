@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join, resolve } from 'node:path';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { loadPreactView } from '../view/preact.js';
 import type { Context } from '../http/context.js';
 import type { Middleware } from '../router/middleware.js';
 
@@ -61,7 +63,6 @@ export class InertiaManager {
   private pagesDir: string = resolve(process.cwd(), 'views/pages');
   private cachedManifestTags: Map<string, string> = new Map();
   private cachedSsrModules: Map<string, any | null> = new Map();
-  private cachedPreactSsr: Promise<[any, any] | null> | null = null;
 
   /**
    * Register a shared prop (or async resolver) automatically merged into all Inertia responses.
@@ -73,6 +74,7 @@ export class InertiaManager {
 
   public setPagesDir(dir: string): this {
     this.pagesDir = resolve(dir);
+    this.cachedSsrModules.clear();
     return this;
   }
 
@@ -247,52 +249,15 @@ export class InertiaManager {
       }
     }
 
-    if (!component || component.includes('\0') || component.includes('..')) {
-      return '';
-    }
-
-    const safeRel = component.replace(/\./g, '/').replace(/^\/+/, '');
-    const isProd = process.env.NODE_ENV === 'production';
-
-    if (isProd && this.cachedSsrModules.has(safeRel)) {
-      const cached = this.cachedSsrModules.get(safeRel);
-      if (!cached) return '';
-      try {
-        const preactPair = await this.getPreactSsr();
-        if (!preactPair) return '';
-        const [{ h }, { renderToString }] = preactPair;
-        return renderToString(this.wrapWithLayout(h, cached, props));
-      } catch {
-        return '';
-      }
-    }
-
-    const candidates = [
-      resolve(this.pagesDir, `${safeRel}.tsx`),
-      resolve(this.pagesDir, `${safeRel}.jsx`),
-    ];
-
-    const pageFile = candidates.find((p) => p.startsWith(this.pagesDir + sep) && existsSync(p));
-    if (!pageFile) {
-      if (isProd) this.cachedSsrModules.set(safeRel, null);
-      return '';
-    }
-
+    const isProduction = process.env.NODE_ENV === 'production';
     try {
-      const preactPair = await this.getPreactSsr();
-      if (!preactPair) return '';
-      const [{ h }, { renderToString }] = preactPair;
-      const mod = await import(pathToFileURL(pageFile).href);
-      const PageComponent = mod.default || Object.values(mod).find((v) => typeof v === 'function');
-      if (typeof PageComponent !== 'function') {
-        if (isProd) this.cachedSsrModules.set(safeRel, null);
-        return '';
+      let page = isProduction ? this.cachedSsrModules.get(component) : undefined;
+      if (page === undefined) {
+        page = await loadPreactView(component, this.pagesDir);
+        if (isProduction) this.cachedSsrModules.set(component, page);
       }
-      if (isProd) this.cachedSsrModules.set(safeRel, PageComponent);
-      return renderToString(this.wrapWithLayout(h, PageComponent, props));
+      return page ? renderToString(this.wrapWithLayout(h, page, props)) : '';
     } catch {
-      if (isProd) this.cachedSsrModules.set(safeRel, null);
-      // Fallback gracefully to client-side mount if preact/SSR is not installed
       return '';
     }
   }
@@ -309,18 +274,6 @@ export class InertiaManager {
       );
     }
     return pageEl;
-  }
-
-  private getPreactSsr(): Promise<[any, any] | null> {
-    if (!this.cachedPreactSsr) {
-      const preactPkg = 'preact';
-      const preactSsrPkg = 'preact-render-to-string';
-      this.cachedPreactSsr = Promise.all([
-        import(/* @vite-ignore */ preactPkg) as Promise<any>,
-        import(/* @vite-ignore */ preactSsrPkg) as Promise<any>,
-      ]).catch(() => null);
-    }
-    return this.cachedPreactSsr;
   }
 
   private renderViteTags(entries: string[]): string {

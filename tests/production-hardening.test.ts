@@ -142,7 +142,7 @@ describe('Production Hardening Tests (v0.5.27)', () => {
     const appDir = join(process.cwd(), 'test-useform-app');
     tempDirs.push(appDir);
 
-    await createNewProject('test-useform-app', 'ts', 'tailwind', 'hotwire', 'jsx');
+    await createNewProject('test-useform-app', 'ts', 'tailwind', 'inertia');
     const inertiaClient = readFileSync(join(appDir, 'resources/js/bir-inertia.tsx'), 'utf-8');
     assert.ok(inertiaClient.includes('export function useForm'));
     assert.ok(inertiaClient.includes('instanceof FormData'));

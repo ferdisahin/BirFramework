@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, '..');
 
 const pkgPath = resolve(rootDir, 'package.json');
+const lockPath = resolve(rootDir, 'package-lock.json');
 const versionTsPath = resolve(rootDir, 'src/version.ts');
 
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
@@ -36,6 +37,13 @@ console.log(`\n🚀 Bumping BirFramework: v${currentVersion} -> v${targetVersion
 pkg.version = targetVersion;
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
 console.log(`✔ Updated package.json to ${targetVersion}`);
+
+const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
+lock.version = targetVersion;
+lock.packages[''].version = targetVersion;
+writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n', 'utf-8');
+console.log(`✔ Updated package-lock.json to ${targetVersion}`);
+
 
 // 2. Update src/version.ts
 writeFileSync(versionTsPath, `export const VERSION = '${targetVersion}';\n`, 'utf-8');

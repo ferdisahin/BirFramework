@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { Model } from '../database/model.js';
-import type { Context } from '../http/context.js';
 
 export interface NewAccessToken {
   accessToken: PersonalAccessToken;

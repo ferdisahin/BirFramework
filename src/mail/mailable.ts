@@ -1,4 +1,4 @@
-import { defaultViewEngine } from '../view/engine.js';
+import { renderPreactView, type PreactView } from '../view/preact.js';
 import type { MailAttachment } from './drivers.js';
 
 export interface MailRecipient {
@@ -38,10 +38,12 @@ export abstract class Mailable {
   }
 
   /**
-   * Helper to render a Blade view template for the email content
+   * Render a Preact view for the email content
    */
-  public view(templateName: string, data: Record<string, any> = {}): string {
-    return defaultViewEngine.render(templateName, data);
+  public view<Props extends Record<string, any> = Record<string, any>>(
+    view: PreactView<Props>, props: Props = {} as Props
+  ): Promise<string> {
+    return renderPreactView(view, props);
   }
 
   abstract content(): Promise<string> | string;

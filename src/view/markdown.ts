@@ -11,7 +11,7 @@ function escapeAttr(str: string): string {
 }
 
 /**
- * Lightweight, zero-dependency Markdown to HTML compiler for BirFramework Blade Engine
+ * Lightweight, zero-dependency Markdown to HTML renderer
  */
 export function parseMarkdown(markdown: string): string {
   if (!markdown) return '';
@@ -23,7 +23,7 @@ export function parseMarkdown(markdown: string): string {
 
   // 2. Fenced Code Blocks: ```lang ... ``` or ````lang ... ````
   const codeBlocks: string[] = [];
-  html = html.replace(/^[ \t]*(`{3,}|~{3,})([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)\r?\n?[ \t]*\1/gm, (_, fence, lang, code) => {
+  html = html.replace(/^[ \t]*(`{3,}|~{3,})([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)\r?\n?[ \t]*\1/gm, (_, _fence, lang, code) => {
     const escaped = code
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

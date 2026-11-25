@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
-import { resolve, dirname, join, relative, isAbsolute } from 'node:path';
-import { S3Disk, type S3DiskOptions } from './drivers/s3.js';
+import { resolve, dirname, relative, isAbsolute } from 'node:path';
+import { S3Disk } from './drivers/s3.js';
 
 export * from './drivers/s3.js';
 

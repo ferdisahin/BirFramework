@@ -27,6 +27,10 @@ export class SqliteDriver implements DatabaseDriver {
     this.databasePath = config.database || process.env.DB_DATABASE || 'database/database.sqlite';
   }
 
+  public hasDatabaseFile(): boolean {
+    return this.databasePath === ':memory:' || existsSync(resolve(process.cwd(), this.databasePath));
+  }
+
   public connect(): void {
     if (this.db) return;
 

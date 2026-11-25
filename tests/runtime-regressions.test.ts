@@ -161,7 +161,7 @@ test('JavaScript JSX scaffold generates valid entrypoints and resolves JSX pages
   const directory = mkdtempSync(join(tmpdir(), 'bir-scaffold-'));
   try {
     process.chdir(directory);
-    await createNewProject('fixture', 'js', 'css', 'hotwire', 'jsx');
+    await createNewProject('fixture', 'js', 'css', 'inertia');
     execFileSync(process.execPath, ['--check', resolve('fixture/app.js')]);
     execFileSync(process.execPath, ['--check', resolve('fixture/api/index.js')]);
     const client = readFileSync('fixture/resources/js/app.tsx', 'utf8');
@@ -170,6 +170,32 @@ test('JavaScript JSX scaffold generates valid entrypoints and resolves JSX pages
     assert.ok(readFileSync('fixture/resources/css/app.css', 'utf8').length > 0);
   } finally {
     process.chdir(originalDirectory);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('migration status reports missing files without changing SQLite history', async () => {
+  const { Migrator } = await import('../src/database/migrator.js');
+  const directory = mkdtempSync(join(tmpdir(), 'bir-migrations-'));
+  const database = join(directory, 'fixture.sqlite');
+  const db = new DatabaseConnection({ driver: 'sqlite', database });
+  const migrator = new Migrator(directory, db);
+  const { existsSync, writeFileSync } = await import('node:fs');
+  const name = '001_fixture.js';
+  try {
+    writeFileSync(join(directory, 'package.json'), '{"type":"module"}');
+    writeFileSync(join(directory, name), 'export default { up() {}, down() {} };');
+    assert.deepEqual(await migrator.status(), [{ name, status: 'pending', batch: null }]);
+    assert.equal(existsSync(database), false);
+
+    await migrator.run();
+    assert.deepEqual(await migrator.status(), [{ name, status: 'applied', batch: 1 }]);
+    rmSync(join(directory, name));
+    assert.deepEqual(await migrator.status(), [{ name, status: 'missing', batch: 1 }]);
+    await assert.rejects(migrator.rollback(), /missing migration/);
+    assert.deepEqual((await migrator.getExecutedMigrations()).map((row) => ({ ...row })), [{ name, batch: 1 }]);
+  } finally {
+    await db.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
