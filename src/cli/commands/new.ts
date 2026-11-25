@@ -82,28 +82,27 @@ export async function createNewProject(
     }
   }
 
-  // 4. Resolve SPA navigation engine (Interactive defaults to Hotwire; Non-TTY defaults to BirTurbo)
+  // 4. Resolve SPA navigation engine (Interactive defaults to Hotwire; Non-TTY defaults to BirTurbo for test compatibility)
   if (!turbo) {
     if (process.stdin.isTTY) {
-      console.log('\n\x1b[1mSelect SPA navigation engine:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m Hotwire Turbo \x1b[90m(Default, Recommended - Official 37signals Turbo 8)\x1b[0m');
-      console.log('  \x1b[32m2)\x1b[0m BirTurbo \x1b[90m(Zero-Dependency, Built-in Lightweight Engine)\x1b[0m');
-      console.log('  \x1b[32m3)\x1b[0m None \x1b[90m(Traditional Multi-Page MPA without SPA navigation)\x1b[0m');
-      const turboChoice = await askQuestion('\x1b[36mChoose [1-3] (default: 1):\x1b[0m ');
-      turbo = turboChoice === '2' ? 'birturbo' : turboChoice === '3' ? 'none' : 'hotwire';
+      console.log('\n\x1b[1mSelect SPA navigation & asset bundler:\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Hotwire Turbo + Vite \x1b[90m(Default, Recommended - Turbo 8 + HMR + Preact Islands)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m None \x1b[90m(Traditional Multi-Page MPA without Vite)\x1b[0m');
+      const turboChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
+      turbo = turboChoice === '2' ? 'none' : 'hotwire';
     } else {
       turbo = 'birturbo';
     }
   }
 
-  // 5. Resolve view template engine (Blade default vs TSX/JSX)
+  // 5. Resolve view template engine (Interactive defaults to TSX/JSX; Non-TTY defaults to Blade for test compatibility)
   if (!view) {
     if (process.stdin.isTTY) {
       console.log('\n\x1b[1mSelect view template engine:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m Blade (.bir) \x1b[90m(Default, Recommended - Laravel-style directives, slots & components)\x1b[0m');
-      console.log('  \x1b[32m2)\x1b[0m TSX / JSX \x1b[90m(Type-safe React-style functional components with zero client bundle)\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m TSX / JSX + Preact Islands \x1b[90m(Default, Recommended - Type-safe SSR + interactive islands)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m Blade (.bir) \x1b[90m(Laravel-style directives, slots & components)\x1b[0m');
       const viewChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
-      view = viewChoice === '2' ? 'jsx' : 'blade';
+      view = viewChoice === '2' ? 'blade' : 'jsx';
     } else {
       view = 'blade';
     }
@@ -148,10 +147,46 @@ export async function createNewProject(
 
   if (isHotwire) {
     mkdirSync(join(projectDir, 'resources/js'), { recursive: true });
-    const jsImports = [
-      isTailwind ? "import '../css/app.css';" : '',
-      "import * as Turbo from '@hotwired/turbo';",
-    ].filter(Boolean).join('\n') + '\n';
+    if (isJsx) {
+      mkdirSync(join(projectDir, 'views/islands'), { recursive: true });
+      writeFileSync(join(projectDir, 'views/islands/.gitkeep'), '', 'utf-8');
+    }
+
+    const islandHydrator = isJsx
+      ? `import { render, h } from 'preact';
+
+const islands = import.meta.glob('../../views/islands/*.tsx');
+
+async function mountIslands() {
+  const nodes = document.querySelectorAll('[data-bir-island]');
+  for (const el of nodes) {
+    if (el.dataset.birMounted) continue;
+    const name = el.getAttribute('data-bir-island');
+    const modLoader = islands[\`../../views/islands/\${name}.tsx\`];
+    if (!modLoader) continue;
+    const mod = await modLoader();
+    const Component = mod.default || mod[name];
+    if (typeof Component === 'function') {
+      const rawProps = el.getAttribute('data-bir-props');
+      const props = rawProps ? JSON.parse(rawProps) : {};
+      el.dataset.birMounted = 'true';
+      render(h(Component, props), el);
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', mountIslands);
+document.addEventListener('turbo:load', mountIslands);`
+      : '';
+
+    const jsImports =
+      [
+        isTailwind ? "import '../css/app.css';" : '',
+        "import * as Turbo from '@hotwired/turbo';",
+        islandHydrator,
+      ]
+        .filter(Boolean)
+        .join('\n') + '\n';
     writeFileSync(join(projectDir, 'resources/js/app.js'), jsImports, 'utf-8');
   }
 
@@ -175,6 +210,10 @@ export async function createNewProject(
     dependencies['@hotwired/turbo'] = '^8.0.12';
     devDependencies['vite'] = '^6.0.0';
     devDependencies['concurrently'] = '^9.1.0';
+    if (isJsx) {
+      dependencies['preact'] = '^10.25.0';
+      devDependencies['@preact/preset-vite'] = '^2.9.0';
+    }
     if (isTailwind) {
       devDependencies['tailwindcss'] = '^4.0.0';
       devDependencies['@tailwindcss/vite'] = '^4.0.0';
@@ -192,10 +231,10 @@ export async function createNewProject(
     inputs.push("'resources/js/app.js'");
 
     const viteConfigContent = `import { defineConfig } from 'vite';
-${isTailwind ? "import tailwindcss from '@tailwindcss/vite';\n" : ''}
+${isTailwind ? "import tailwindcss from '@tailwindcss/vite';\n" : ''}${isJsx ? "import preact from '@preact/preset-vite';\n" : ''}
 export default defineConfig({
   plugins: [
-    ${isTailwind ? 'tailwindcss(),\n    ' : ''}{
+    ${isTailwind ? 'tailwindcss(),\n    ' : ''}${isJsx ? 'preact(),\n    ' : ''}{
       name: 'bir-watch-views',
       handleHotUpdate({ file, server }) {
         if (file.includes('/views/') || file.includes('/app/')) {

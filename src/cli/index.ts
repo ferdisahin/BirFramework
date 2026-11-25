@@ -1,4 +1,4 @@
-import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent, makeView } from './commands/make.js';
+import { makeController, makeMiddleware, makeModel, makeMigration, makeJob, makeMail, makeSeeder, makeFactory, makeEvent, makeListener, makeRequest, makeVercel, makeProvider, makeComponent, makeView, makeIsland } from './commands/make.js';
 import { listRoutes } from './commands/routes.js';
 import { createNewProject } from './commands/new.js';
 import { scaffoldAuth } from './commands/auth.js';
@@ -155,6 +155,12 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       const jsx = args.includes('--jsx') ? true : args.includes('--blade') ? false : undefined;
       const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
       makeView(name, jsx);
+      break;
+    }
+
+    case 'make:island': {
+      const name = args.find((a, i) => i > 0 && !a.startsWith('-')) || '';
+      makeIsland(name);
       break;
     }
 

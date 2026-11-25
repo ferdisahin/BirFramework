@@ -734,3 +734,70 @@ export default function ${pascalName}(props: { title?: string }) {
   }
 }
 
+export function makeIsland(name: string) {
+  if (!name) {
+    console.error('\x1b[31m[Error]\x1b[0m You must specify an island name. E.g.: bir make:island ProfileModal');
+    return;
+  }
+  try {
+    assertValidName(name);
+  } catch (err: any) {
+    console.error(`\x1b[31m[Error]\x1b[0m ${err.message}`);
+    return;
+  }
+
+  const cleanName = name.replace(/\.(tsx|jsx)$/, '');
+  const pascalName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+  const targetPath = resolve(process.cwd(), 'views/islands', `${pascalName}.tsx`);
+
+  if (existsSync(targetPath)) {
+    console.error(`\x1b[31m[Error]\x1b[0m Island ${pascalName}.tsx already exists!`);
+    return;
+  }
+
+  ensureDir(targetPath);
+
+  const islandContent = `/** @jsxImportSource preact */
+import { useState } from 'preact/hooks';
+
+export interface ${pascalName}Props {
+  label?: string;
+}
+
+export default function ${pascalName}({ label = 'Open ${pascalName}' }: ${pascalName}Props) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-white hover:bg-zinc-800 transition cursor-pointer"
+      >
+        {label}
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl bg-zinc-950 border border-zinc-800 p-6 text-white">
+            <h2 className="text-base font-semibold">${pascalName}</h2>
+            <p className="text-xs text-zinc-400 mt-1">Interactive Preact Island mounted cleanly.</p>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="mt-4 px-3 py-1.5 rounded bg-white text-zinc-950 text-xs font-medium cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+  writeFileSync(targetPath, islandContent, 'utf-8');
+  console.log(`\x1b[32m✔ Preact Island created successfully:\x1b[0m views/islands/${pascalName}.tsx`);
+  console.log(`\x1b[90mUsage in any SSR .tsx view: <Island name="${pascalName}" props={{ label: 'Profile' }} />\x1b[0m`);
+}
+

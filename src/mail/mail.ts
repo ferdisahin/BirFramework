@@ -1,4 +1,13 @@
-import { type MailDriver, LogMailDriver, ArrayMailDriver, type OutgoingEmail, type MailAttachment } from './drivers.js';
+import {
+  type MailDriver,
+  LogMailDriver,
+  ArrayMailDriver,
+  ResendMailDriver,
+  SmtpMailDriver,
+  type SmtpOptions,
+  type OutgoingEmail,
+  type MailAttachment,
+} from './drivers.js';
 import { Mailable } from './mailable.js';
 
 function sanitizeEmailHeader(str?: string): string {
@@ -43,6 +52,34 @@ export class MailManager {
 
   public setDriver(driver: MailDriver): this {
     this.driver = driver;
+    return this;
+  }
+
+  public useResend(apiKey: string): this {
+    this.driver = new ResendMailDriver(apiKey);
+    return this;
+  }
+
+  public useSmtp(options: SmtpOptions): this {
+    this.driver = new SmtpMailDriver(options);
+    return this;
+  }
+
+  public configureFromEnv(): this {
+    const mailer = (process.env.MAIL_MAILER || 'log').toLowerCase();
+    if (mailer === 'resend' && process.env.RESEND_API_KEY) {
+      return this.useResend(process.env.RESEND_API_KEY);
+    }
+    if (mailer === 'smtp' && process.env.MAIL_HOST) {
+      return this.useSmtp({
+        host: process.env.MAIL_HOST,
+        port: process.env.MAIL_PORT ? Number(process.env.MAIL_PORT) : undefined,
+        user: process.env.MAIL_USERNAME,
+        pass: process.env.MAIL_PASSWORD,
+        secure: process.env.MAIL_ENCRYPTION === 'ssl' || process.env.MAIL_PORT === '465',
+      });
+    }
+    this.driver = new LogMailDriver();
     return this;
   }
 

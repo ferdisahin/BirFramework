@@ -164,3 +164,24 @@ export function Flash(props: {
 
   return h('div', { className: props.className || defaultStyles[type] || defaultStyles.info, role: 'alert' }, message);
 }
+
+/**
+ * Mount a client-side Preact Island inside a server-rendered TSX page.
+ * Example: <Island name="ProfileModal" props={{ user }} />
+ */
+export function Island(props: {
+  name: string;
+  props?: Record<string, any>;
+  className?: string;
+  children?: any;
+}): JSXElement {
+  return h(
+    'div',
+    {
+      'data-bir-island': props.name,
+      'data-bir-props': JSON.stringify(props.props || {}),
+      className: props.className,
+    },
+    props.children
+  );
+}
