@@ -40,6 +40,7 @@ export class QueryBuilder<T = any> {
   private connection: DatabaseConnection;
   private modelClass?: new (attributes: any, exists: boolean) => T;
   private eagerRelations: string[] = [];
+  private lockForUpdate: boolean = false;
 
   constructor(
     tableName: string,
@@ -406,7 +407,19 @@ export class QueryBuilder<T = any> {
       sql += ` OFFSET ${this.offsetCount}`;
     }
 
+    if (this.lockForUpdate && this.connection.dialect !== 'sqlite') {
+      sql += ' FOR UPDATE';
+    }
+
     return { sql, params };
+  }
+
+  /**
+   * Acquire a pessimistic row-level write lock (FOR UPDATE on PostgreSQL / MySQL).
+   */
+  public forUpdate(): this {
+    this.lockForUpdate = true;
+    return this;
   }
 
   private addWhere(boolean: 'AND' | 'OR', column: string, operatorOrValue: any, value?: any): this {

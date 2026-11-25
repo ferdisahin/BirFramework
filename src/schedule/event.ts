@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 export type ScheduledTask = () => Promise<void> | void;
 
 export class ScheduleEvent {
@@ -8,6 +12,8 @@ export class ScheduleEvent {
   private specificMinute?: number;
   private lastRunAt: number = 0;
   private preventOverlap: boolean = false;
+  private overlapTtlSeconds: number = 3600;
+  private lockDir?: string;
   private isRunning: boolean = false;
 
   constructor(callback: ScheduledTask, description?: string) {
@@ -64,15 +70,72 @@ export class ScheduleEvent {
   }
 
   /**
-   * Prevent this scheduled task from overlapping if a previous execution is still running.
+   * Prevent this scheduled task from overlapping across ticks or worker processes.
    */
-  public withoutOverlapping(): this {
+  public withoutOverlapping(ttlSeconds: number = 3600, lockDir?: string): this {
     this.preventOverlap = true;
+    this.overlapTtlSeconds = Math.max(1, ttlSeconds);
+    this.lockDir = lockDir;
     return this;
   }
 
+  private getLockFilePath(): string {
+    const dir = this.lockDir ? resolve(this.lockDir) : resolve(process.cwd(), 'storage/framework/locks');
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const hash = createHash('sha1').update(this.descriptionText).digest('hex').slice(0, 12);
+    return join(dir, `schedule-${hash}.lock`);
+  }
+
+  private isLockHeldExternally(): boolean {
+    if (!this.preventOverlap) return false;
+    const lockPath = this.getLockFilePath();
+    if (!existsSync(lockPath)) return false;
+    try {
+      const data = JSON.parse(readFileSync(lockPath, 'utf-8'));
+      if (data.expiresAt && Date.now() < Number(data.expiresAt)) {
+        return true;
+      }
+      rmSync(lockPath, { force: true });
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  private acquireCrossProcessLock(): boolean {
+    const lockPath = this.getLockFilePath();
+    const payload = JSON.stringify({
+      pid: process.pid,
+      expiresAt: Date.now() + this.overlapTtlSeconds * 1000,
+    });
+    try {
+      writeFileSync(lockPath, payload, { flag: 'wx' });
+      return true;
+    } catch {
+      if (!this.isLockHeldExternally()) {
+        try {
+          writeFileSync(lockPath, payload, { flag: 'wx' });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    }
+  }
+
+  private releaseCrossProcessLock(): void {
+    try {
+      rmSync(this.getLockFilePath(), { force: true });
+    } catch {
+      // ignore
+    }
+  }
+
   public isDue(date: Date = new Date()): boolean {
-    if (this.preventOverlap && this.isRunning) {
+    if (this.preventOverlap && (this.isRunning || this.isLockHeldExternally())) {
       return false;
     }
 
@@ -95,8 +158,10 @@ export class ScheduleEvent {
   }
 
   public async run(): Promise<void> {
-    if (this.preventOverlap && this.isRunning) {
-      return;
+    if (this.preventOverlap) {
+      if (this.isRunning || !this.acquireCrossProcessLock()) {
+        return;
+      }
     }
 
     this.isRunning = true;
@@ -105,6 +170,9 @@ export class ScheduleEvent {
       await this.callback();
     } finally {
       this.isRunning = false;
+      if (this.preventOverlap) {
+        this.releaseCrossProcessLock();
+      }
     }
   }
 }

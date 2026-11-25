@@ -49,14 +49,36 @@ export class PostgresDriver implements DatabaseDriver {
   }
 
   /**
-   * Translates standard '?' parameter placeholders to PostgreSQL '$1, $2, ...'
+   * Translates standard '?' parameter placeholders to PostgreSQL '$1, $2, ...' (ignoring '?' inside quotes)
    */
   public translateSql(sql: string): string {
     let index = 1;
-    // Replace ? with $1, $2, etc. (unless inside quotes)
-    const convertedSql = sql.replace(/\?/g, () => `$${index++}`);
-    // Replace backticks with double quotes for PostgreSQL identifiers
-    return convertedSql.replace(/`([^`]+)`/g, '"$1"');
+    let out = '';
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let inBacktick = false;
+
+    for (let i = 0; i < sql.length; i++) {
+      const ch = sql[i]!;
+      const prev = i > 0 ? sql[i - 1] : '';
+
+      if (ch === "'" && !inDoubleQuote && !inBacktick && prev !== '\\') {
+        inSingleQuote = !inSingleQuote;
+        out += ch;
+      } else if (ch === '"' && !inSingleQuote && !inBacktick && prev !== '\\') {
+        inDoubleQuote = !inDoubleQuote;
+        out += ch;
+      } else if (ch === '`' && !inSingleQuote && !inDoubleQuote) {
+        inBacktick = !inBacktick;
+        out += '"';
+      } else if (ch === '?' && !inSingleQuote && !inDoubleQuote && !inBacktick) {
+        out += `$${index++}`;
+      } else {
+        out += ch;
+      }
+    }
+
+    return out;
   }
 
   public async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
