@@ -1,3 +1,4 @@
+import { gzipSync, brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 import type { Middleware } from '../router/middleware.js';
 import { Log } from '../logging/log.js';
 
@@ -96,5 +97,124 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
     }
 
     await next();
+  };
+}
+
+export interface CompressOptions {
+  /** Minimum response size in bytes before compression is applied. Default: 1024 */
+  threshold?: number;
+  /** Enable Brotli (`br`) compression when supported by the client. Default: true */
+  brotli?: boolean;
+  /** Enable Gzip (`gzip`) compression when supported by the client. Default: true */
+  gzip?: boolean;
+}
+
+/**
+ * Response compression middleware supporting Brotli (`br`) and Gzip (`gzip`).
+ * Skips HEAD, 204/206/304, SSE (`text/event-stream`), and binary media (`audio/*`, `video/*`, `image/*`).
+ */
+export function compress(options: CompressOptions = {}): Middleware {
+  const threshold = options.threshold ?? 1024;
+  const allowBrotli = options.brotli !== false;
+  const allowGzip = options.gzip !== false;
+
+  return async (ctx, next) => {
+    if (ctx.method === 'HEAD') {
+      await next();
+      return;
+    }
+
+    const acceptEncoding = String(ctx.req.headers['accept-encoding'] || '').toLowerCase();
+    const encoding: 'br' | 'gzip' | null =
+      allowBrotli && acceptEncoding.includes('br')
+        ? 'br'
+        : allowGzip && acceptEncoding.includes('gzip')
+          ? 'gzip'
+          : null;
+
+    if (!encoding) {
+      await next();
+      return;
+    }
+
+    const res = ctx.res;
+    const origWrite = res.write.bind(res);
+    const origEnd = res.end.bind(res);
+    const chunks: Buffer[] = [];
+    let bypassed = false;
+
+    const shouldSkip = (): boolean => {
+      if (res.headersSent) return true;
+      const status = res.statusCode;
+      if (status === 204 || status === 206 || status === 304) return true;
+      if (res.getHeader('Content-Encoding')) return true;
+      const ct = String(res.getHeader('Content-Type') || '').toLowerCase();
+      if (
+        ct.startsWith('text/event-stream') ||
+        ct.startsWith('audio/') ||
+        ct.startsWith('video/') ||
+        ct.startsWith('image/')
+      ) {
+        return true;
+      }
+      return false;
+    };
+
+    const flushBypassed = () => {
+      bypassed = true;
+      for (const c of chunks) {
+        origWrite(c);
+      }
+      chunks.length = 0;
+    };
+
+    res.write = ((chunk: any, encOrCb?: any, cb?: any): boolean => {
+      if (bypassed) return origWrite(chunk, encOrCb, cb);
+      if (shouldSkip()) {
+        flushBypassed();
+        return origWrite(chunk, encOrCb, cb);
+      }
+      if (chunk !== undefined && chunk !== null) {
+        const enc = typeof encOrCb === 'string' ? (encOrCb as BufferEncoding) : 'utf-8';
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
+      }
+      if (typeof encOrCb === 'function') encOrCb();
+      else if (typeof cb === 'function') cb();
+      return true;
+    }) as typeof res.write;
+
+    res.end = ((chunk?: any, encOrCb?: any, cb?: any): typeof res => {
+      if (bypassed) return origEnd(chunk, encOrCb, cb);
+
+      if (chunk !== undefined && chunk !== null && typeof chunk !== 'function') {
+        const enc = typeof encOrCb === 'string' ? (encOrCb as BufferEncoding) : 'utf-8';
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
+      }
+
+      const body = Buffer.concat(chunks);
+      chunks.length = 0;
+
+      if (shouldSkip() || body.length < threshold) {
+        return origEnd(body.length > 0 ? body : undefined, typeof encOrCb === 'function' ? encOrCb : cb);
+      }
+
+      const compressed =
+        encoding === 'br'
+          ? brotliCompressSync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } })
+          : gzipSync(body, { level: 4 });
+      res.removeHeader('Content-Length');
+      res.setHeader('Content-Encoding', encoding);
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.setHeader('Content-Length', String(compressed.length));
+
+      return origEnd(compressed, typeof encOrCb === 'function' ? encOrCb : cb);
+    }) as typeof res.end;
+
+    try {
+      await next();
+    } finally {
+      res.write = origWrite;
+      res.end = origEnd;
+    }
   };
 }

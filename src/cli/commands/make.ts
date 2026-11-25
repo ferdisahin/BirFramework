@@ -449,8 +449,10 @@ export default ${cleanName};
   console.log(`\x1b[32m✔ Form Request created successfully:\x1b[0m app/requests/${cleanName}.ts`);
 }
 
-export function makeVercel() {
-  const rootDir = process.cwd();
+/**
+ * Write Vercel serverless configuration (`vercel.json` and `api/index.js`) into `rootDir`.
+ */
+export function writeVercelConfig(rootDir: string = process.cwd()): { vercelJsonPath: string; apiIndexPath: string } {
   const apiDir = resolve(rootDir, 'api');
   const vercelJsonPath = resolve(rootDir, 'vercel.json');
   const apiIndexPath = resolve(apiDir, 'index.js');
@@ -461,34 +463,47 @@ export function makeVercel() {
 
   // 1. vercel.json
   const vercelConfig = {
-    outputDirectory: "public",
+    buildCommand: 'npm run build --if-present',
+    outputDirectory: 'public',
     functions: {
-      "api/index.js": {
-        includeFiles: "{views/**,docs/**,storage/**,public/build/**}"
+      'api/index.js': {
+        includeFiles: '{views/**,docs/**,storage/**,public/**}'
       }
     },
     rewrites: [
       {
-        source: "/(.*)",
-        destination: "/api/index.js"
+        source: '/(.*)',
+        destination: '/api/index.js'
       }
     ]
   };
 
   writeFileSync(vercelJsonPath, JSON.stringify(vercelConfig, null, 2) + '\n', 'utf-8');
-  console.log(`\x1b[32m✔ Created:\x1b[0m vercel.json`);
 
   // 2. api/index.js
-  const apiIndexContent = `import { Application, logger } from 'birframework';
+  const apiIndexContent = `import { Application, compress, serveStatic, Inertia, logger } from 'birframework';
 import '../routes/web.js';
 
 const app = new Application();
-app.use(logger());
+app.use(compress({ threshold: 512 }));
+app.use(serveStatic({ publicDir: 'public' }));
+app.use(Inertia.middleware());
+
+if (process.env.NODE_ENV !== 'production') {
+  app.use(logger());
+}
 
 export default app.serverless();
 `;
 
   writeFileSync(apiIndexPath, apiIndexContent, 'utf-8');
+  return { vercelJsonPath, apiIndexPath };
+}
+
+export function makeVercel() {
+  const rootDir = process.cwd();
+  writeVercelConfig(rootDir);
+  console.log(`\x1b[32m✔ Created:\x1b[0m vercel.json`);
   console.log(`\x1b[32m✔ Created:\x1b[0m api/index.js`);
 
   console.log(`\n\x1b[36m🚀 Vercel serverless configuration ready!\x1b[0m`);

@@ -10,6 +10,7 @@ import { UploadedFile } from './uploaded-file.js';
 import { parseMultipart } from './multipart.js';
 import { __, Lang } from '../localization/translator.js';
 import { Inertia, type InertiaRenderOptions } from '../inertia/index.js';
+import { serveFile, type ServeFileOptions } from './static.js';
 
 export interface CookieOptions {
   maxAge?: number;
@@ -287,6 +288,17 @@ export class Context {
     options: InertiaRenderOptions = {}
   ): Promise<void> {
     await Inertia.render(this, component, props, options);
+  }
+
+  /**
+   * Stream a file with HTTP Range (206 Partial Content), ETag/304, and MIME detection.
+   * Useful for authenticated audio/video streaming or protected file downloads.
+   */
+  public async fileStream(filePath: string, options: ServeFileOptions = {}): Promise<void> {
+    const served = await serveFile(this, resolve(filePath), options);
+    if (!served) {
+      this.status(404).text('File not found');
+    }
   }
 
   /**
