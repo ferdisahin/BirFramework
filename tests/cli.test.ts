@@ -48,7 +48,9 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     await createNewProject('test-css-app', 'js', 'css');
 
     assert.strictEqual(existsSync(resolve(testCssApp, 'package.json')), true);
-    assert.strictEqual(existsSync(resolve(testCssApp, 'tsconfig.json')), false); // Pure JS has no tsconfig
+    const tsconfig = JSON.parse(readFileSync(resolve(testCssApp, 'tsconfig.json'), 'utf-8'));
+    assert.strictEqual(tsconfig.compilerOptions.allowJs, true);
+    assert.strictEqual(tsconfig.compilerOptions.jsxImportSource, 'preact');
     assert.strictEqual(existsSync(resolve(testCssApp, 'app.js')), true);
     assert.strictEqual(existsSync(resolve(testCssApp, 'routes/web.js')), true);
     assert.strictEqual(existsSync(resolve(testCssApp, 'public/css/app.css')), true);
@@ -128,10 +130,15 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/register.tsx')), true);
       assert.strictEqual(existsSync(resolve(testAuthApp, 'views/dashboard.tsx')), true);
 
+      const authController = readFileSync(resolve(testAuthApp, 'app/controllers/AuthController.ts'), 'utf-8');
+      assert.match(authController, /user: publicUser\(user\)/);
+      assert.doesNotMatch(authController, /successfully', user \}/);
+
       // Verify routes were appended
       const routesContent = readFileSync(resolve(testAuthApp, 'routes/web.ts'), 'utf-8');
       assert.match(routesContent, /AuthController/);
       assert.match(routesContent, /\/login/);
+      assert.match(routesContent, /middleware\(guest\(\), csrf\(\)\)/);
       assert.match(routesContent, /\/dashboard/);
     } finally {
       process.chdir(originalCwd);

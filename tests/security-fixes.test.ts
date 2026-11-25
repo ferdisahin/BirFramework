@@ -973,7 +973,15 @@ describe('BirFramework Security Fixes Verification Tests', () => {
     const { Queue } = await import('../src/queue/queue.js');
     const { dbConnection } = await import('../src/database/connection.js');
 
-    dbConnection.connect();
+    const { Job } = await import('../src/queue/job.js');
+    class SecurityMaliciousJob extends Job {
+      async handle() {
+        assert.equal(Object.getPrototypeOf(this), SecurityMaliciousJob.prototype);
+      }
+    }
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
+    Queue.register(SecurityMaliciousJob);
     await Queue.ensureQueueTable();
 
     const worker = new QueueWorker();

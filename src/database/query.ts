@@ -78,7 +78,7 @@ export class QueryBuilder<T = any> {
 
   public whereIn(column: string, values: any[]): this {
     if (values.length === 0) {
-      this.where('1', '=', '0');
+      this.addWhereRaw('AND', '1 = 0', []);
       return this;
     }
     const safeCol = sanitizeIdentifier(column);
@@ -253,7 +253,7 @@ export class QueryBuilder<T = any> {
     return count > 0;
   }
 
-  public async insert(data: Record<string, any> | Record<string, any>[]): Promise<{ lastInsertRowid: number | bigint }> {
+  public async insert(data: Record<string, any> | Record<string, any>[], returningKey: string | null = 'id'): Promise<{ lastInsertRowid: number | bigint }> {
     const records = Array.isArray(data) ? data : [data];
     if (records.length === 0) return { lastInsertRowid: 0 };
 
@@ -271,7 +271,16 @@ export class QueryBuilder<T = any> {
       }
     }
 
-    const sql = `INSERT INTO \`${this.tableName}\` (\`${columns.join('`, `')}\`) VALUES ${valuesPlaceholders.join(', ')}`;
+    const sql = `INSERT INTO ${sanitizeIdentifier(this.tableName)} (${columns.map(sanitizeIdentifier).join(', ')}) VALUES ${valuesPlaceholders.join(', ')}`;
+    if (this.connection.dialect === 'postgres') {
+      const statement = returningKey === null ? sql : `${sql} RETURNING ${sanitizeIdentifier(returningKey)} AS id`;
+      if (returningKey === null) {
+        await this.connection.query(statement, allValues);
+        return { lastInsertRowid: 0 };
+      }
+      const result = await this.connection.execute(statement, allValues);
+      return { lastInsertRowid: result.lastInsertRowid };
+    }
     const result = await this.connection.execute(sql, allValues);
     return { lastInsertRowid: result.lastInsertRowid };
   }

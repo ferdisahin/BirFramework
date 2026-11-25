@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DatabaseDriver, DatabaseDialect, QueryResult } from './driver.js';
 
 export interface MysqlConfig {
@@ -12,6 +13,7 @@ export interface MysqlConfig {
 export class MysqlDriver implements DatabaseDriver {
   public readonly dialect: DatabaseDialect = 'mysql';
   private pool: any = null;
+  private readonly connectionScope = new AsyncLocalStorage<{ connection: any; active: boolean }>();
   private config: MysqlConfig;
 
   constructor(config: MysqlConfig = {}) {
@@ -31,6 +33,7 @@ export class MysqlDriver implements DatabaseDriver {
 
     try {
       const mysqlModule = await import('mysql2/promise' as any).catch(() => null);
+      if (this.pool) return;
       if (mysqlModule && mysqlModule.createPool) {
         this.pool = mysqlModule.createPool(
           this.config.url ? this.config.url : this.config
@@ -46,9 +49,27 @@ export class MysqlDriver implements DatabaseDriver {
     }
   }
 
+  public async withConnection<T>(callback: () => Promise<T>): Promise<T> {
+    await this.connect();
+    const connection = await this.pool.getConnection();
+    const scope = { connection, active: true };
+    try {
+      return await this.connectionScope.run(scope, callback);
+    } finally {
+      scope.active = false;
+      connection.release();
+    }
+  }
+
+  private get executor(): any {
+    const scope = this.connectionScope.getStore();
+    if (scope && !scope.active) throw new Error('[BirDatabase] Transaction connection has already been released.');
+    return scope?.connection ?? this.pool;
+  }
+
   public async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
     await this.connect();
-    const [rows] = await this.pool.query(sql, params);
+    const [rows] = await this.executor.query(sql, params);
     return rows as T[];
   }
 
@@ -59,7 +80,7 @@ export class MysqlDriver implements DatabaseDriver {
 
   public async execute(sql: string, params: any[] = []): Promise<QueryResult> {
     await this.connect();
-    const [result] = await this.pool.execute(sql, params);
+    const [result] = await this.executor.execute(sql, params);
     return {
       changes: result.affectedRows || 0,
       lastInsertRowid: result.insertId || 0,
@@ -68,7 +89,7 @@ export class MysqlDriver implements DatabaseDriver {
 
   public async exec(sql: string): Promise<void> {
     await this.connect();
-    await this.pool.query(sql);
+    await this.executor.query(sql);
   }
 
   public async close(): Promise<void> {

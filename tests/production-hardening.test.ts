@@ -57,7 +57,8 @@ describe('Production Hardening Tests (v0.5.27)', () => {
   });
 
   test('DatabaseSessionStore persists sessions in _sessions table', async () => {
-    await dbConnection.connect(':memory:');
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
     const store = new DatabaseSessionStore();
     setSessionStore(store);
 

@@ -2,6 +2,9 @@ import { dbConnection } from '../database/connection.js';
 import { Queue, type JobRecord } from './queue.js';
 import type { Job } from './job.js';
 
+const CLAIM_SECONDS = 60;
+const RETRY_SECONDS = 5;
+
 export interface WorkerOptions {
   queue?: string;
   sleepMs?: number;
@@ -26,74 +29,71 @@ export class QueueWorker {
       return false;
     }
 
-    const JobClass = Queue.getJobClass(jobRecord.name);
-    let jobInstance: Job;
+    const attempts = jobRecord.attempts + 1;
+    const claim = await dbConnection.execute(
+      `UPDATE ${q}_jobs${q} SET ${q}attempts${q} = ?, ${q}available_at${q} = ? WHERE ${q}id${q} = ? AND ${q}attempts${q} = ? AND ${q}available_at${q} <= ?;`,
+      [attempts, now + CLAIM_SECONDS, jobRecord.id, jobRecord.attempts, now]
+    );
+    if (Number(claim.changes) === 0) return false;
+    jobRecord.attempts = attempts;
 
+    let job: Job;
     try {
+      const JobClass = Queue.getJobClass(jobRecord.name);
+      if (!JobClass) throw new Error(`Handler class not registered for: ${jobRecord.name}`);
       const parsed = JSON.parse(jobRecord.payload);
-      if (JobClass) {
-        jobInstance = new JobClass();
-        if (parsed?.data && typeof parsed.data === 'object') {
-          for (const [k, v] of Object.entries(parsed.data)) {
-            if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
-              (jobInstance as any)[k] = v;
-            }
+      job = new JobClass();
+      if (parsed?.data && typeof parsed.data === 'object') {
+        for (const [key, value] of Object.entries(parsed.data)) {
+          if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype' && key !== 'handle') {
+            (job as any)[key] = value;
           }
         }
-      } else {
-        // Fallback generic object with handle if class not pre-registered
-        const safeData: Record<string, any> = {};
-        if (parsed?.data && typeof parsed.data === 'object') {
-          for (const [k, v] of Object.entries(parsed.data)) {
-            if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
-              safeData[k] = v;
-            }
-          }
-        }
-        jobInstance = {
-          ...safeData,
-          handle: () => {
-            console.warn(`[BirQueue Worker] Handler class not registered for: ${jobRecord.name}`);
-          },
-        } as any;
       }
-    } catch (err: any) {
-      console.error(`[BirQueue Worker] Failed to deserialize job #${jobRecord.id}: ${err.message}`);
-      await dbConnection.execute(`DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ?;`, [jobRecord.id]);
+    } catch (error) {
+      await Queue.failClaimedJob(jobRecord, String(error));
+      console.error(`[BirQueue] Cannot load job #${jobRecord.id}:`, error);
       return false;
     }
 
-    // Execute job
-    const attempts = jobRecord.attempts + 1;
-    const maxTries = jobInstance.tries || 3;
+    const maxTries = job.tries || 3;
+    if (attempts > maxTries) {
+      await Queue.failClaimedJob(jobRecord, 'Job claim expired after the final attempt.');
+      return false;
+    }
+    const renew = setInterval(() => {
+      const until = Math.floor(Date.now() / 1000) + CLAIM_SECONDS;
+      void dbConnection.execute(
+        `UPDATE ${q}_jobs${q} SET ${q}available_at${q} = ? WHERE ${q}id${q} = ? AND ${q}attempts${q} = ? AND ${q}available_at${q} > ?;`,
+        [until, jobRecord.id, attempts, until - CLAIM_SECONDS + RETRY_SECONDS]
+      ).catch((error) => console.error(`[BirQueue] Failed to renew claim for job #${jobRecord.id}:`, error));
+    }, (CLAIM_SECONDS / 3) * 1000);
+    renew.unref();
 
     try {
-      console.log(`\x1b[36m[Queue]\x1b[0m Processing: ${jobRecord.name} (Job #${jobRecord.id})`);
-      const start = Date.now();
-      await jobInstance.handle();
-      const duration = Date.now() - start;
-
-      // Successfully finished, remove from queue
-      await dbConnection.execute(`DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ?;`, [jobRecord.id]);
-      console.log(`\x1b[32m[Queue]\x1b[0m Processed:  ${jobRecord.name} (${duration}ms)`);
-      return true;
-    } catch (err: any) {
-      console.error(`\x1b[31m[Queue]\x1b[0m Failed:     ${jobRecord.name} - ${err.message}`);
-
+      await job.handle();
+    } catch (error) {
+      clearInterval(renew);
+      console.error(`[BirQueue] Job #${jobRecord.id} failed:`, error);
       if (attempts >= maxTries) {
-        console.error(`\x1b[31m[Queue]\x1b[0m Max attempts (${maxTries}) reached. Moving job #${jobRecord.id} to failed_jobs.`);
-        await Queue.recordFailedJob(jobRecord, err?.stack || err?.message || 'Unknown error');
-        await dbConnection.execute(`DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ?;`, [jobRecord.id]);
+        await Queue.failClaimedJob(jobRecord, error instanceof Error ? error.stack || error.message : String(error));
       } else {
-        // Retry with backoff (e.g. 5 seconds delay)
-        const nextAttemptAt = Math.floor(Date.now() / 1000) + 5;
+        const nextAttemptAt = Math.floor(Date.now() / 1000) + RETRY_SECONDS;
         await dbConnection.execute(
-          `UPDATE ${q}_jobs${q} SET ${q}attempts${q} = ?, ${q}available_at${q} = ? WHERE ${q}id${q} = ?;`,
-          [attempts, nextAttemptAt, jobRecord.id]
+          `UPDATE ${q}_jobs${q} SET ${q}available_at${q} = ? WHERE ${q}id${q} = ? AND ${q}attempts${q} = ?;`,
+          [nextAttemptAt, jobRecord.id, attempts]
         );
       }
       return false;
+    } finally {
+      clearInterval(renew);
     }
+
+    const removed = await dbConnection.execute(
+      `DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ? AND ${q}attempts${q} = ?;`,
+      [jobRecord.id, attempts]
+    );
+    return Number(removed.changes) > 0;
   }
 
   public async work(options: WorkerOptions = {}): Promise<void> {

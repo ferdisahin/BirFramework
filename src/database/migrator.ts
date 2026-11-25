@@ -20,7 +20,7 @@ export class Migrator {
     const isPg = this.connection.dialect === 'postgres';
     const q = isPg ? '"' : '`';
     const idDef = isPg ? 'SERIAL PRIMARY KEY' : this.connection.dialect === 'mysql' ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
-    const textType = isPg ? 'VARCHAR(255)' : 'TEXT';
+    const textType = this.connection.dialect === 'sqlite' ? 'TEXT' : 'VARCHAR(255)';
 
     await this.connection.exec(`
       CREATE TABLE IF NOT EXISTS ${q}_migrations${q} (
@@ -44,7 +44,7 @@ export class Migrator {
     await this.ensureMigrationsTable();
     const q = this.connection.dialect === 'postgres' ? '"' : '`';
     const row = await this.connection.queryOne<{ maxBatch: number }>(
-      `SELECT MAX(${q}batch${q}) as maxBatch FROM ${q}_migrations${q};`
+      `SELECT MAX(${q}batch${q}) AS ${q}maxBatch${q} FROM ${q}_migrations${q};`
     );
     return (row?.maxBatch || 0) + 1;
   }
@@ -97,7 +97,7 @@ export class Migrator {
     await this.ensureMigrationsTable();
     const q = this.connection.dialect === 'postgres' ? '"' : '`';
     const lastBatchRow = await this.connection.queryOne<{ maxBatch: number }>(
-      `SELECT MAX(${q}batch${q}) as maxBatch FROM ${q}_migrations${q};`
+      `SELECT MAX(${q}batch${q}) AS ${q}maxBatch${q} FROM ${q}_migrations${q};`
     );
     const lastBatch = lastBatchRow?.maxBatch;
     if (!lastBatch) {

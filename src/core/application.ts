@@ -28,7 +28,8 @@ export class Application {
   private fileWatcherInitialized: boolean = false;
   private providers: ServiceProvider[] = [];
   public booted: boolean = false;
-  private isBooting: boolean = false;
+  private bootPromise?: Promise<void>;
+  private pendingRegistrations: Promise<void>[] = [];
 
   constructor(options: ApplicationOptions = {}) {
     this.router = options.router || new Router(defaultRouter);
@@ -141,21 +142,20 @@ export class Application {
 
   private registerProvider(provider: ServiceProvider): this {
     this.providers.push(provider);
-    const regResult = provider.register();
-    if (regResult && typeof (regResult as any).then === 'function') {
-      (regResult as any).catch((err: any) => {
-        console.error(`[BirFramework] Provider registration error in ${provider.constructor.name}:`, err);
-      });
-    }
-
-    // If app is already booted, boot this newly registered provider immediately
+    const registration = provider.register();
     if (this.booted) {
-      const bootResult = provider.boot();
-      if (bootResult && typeof (bootResult as any).then === 'function') {
-        (bootResult as any).catch((err: any) => {
-          console.error(`[BirFramework] Provider boot error in ${provider.constructor.name}:`, err);
+      if (registration) {
+        void Promise.resolve(registration).then(() => provider.boot()).catch((error) => {
+          console.error(`[BirFramework] Provider initialization error in ${provider.constructor.name}:`, error);
         });
+      } else {
+        const result = provider.boot();
+        if (result) void result.catch((error) => console.error(error));
       }
+    } else if (registration) {
+      const pending = Promise.resolve(registration);
+      void pending.catch(() => {});
+      this.pendingRegistrations.push(pending);
     }
 
     return this;
@@ -165,17 +165,17 @@ export class Application {
    * Boot the application and all registered Service Providers.
    */
   public async boot(): Promise<void> {
-    if (this.booted || this.isBooting) return;
-    this.isBooting = true;
-
-    try {
+    if (this.booted) return;
+    this.bootPromise ??= Promise.resolve().then(async () => {
       for (const provider of this.providers) {
+        await Promise.all(this.pendingRegistrations);
         await provider.boot();
       }
       this.booted = true;
-    } finally {
-      this.isBooting = false;
-    }
+    }).finally(() => {
+      this.bootPromise = undefined;
+    });
+    await this.bootPromise;
   }
 
   /**
@@ -193,9 +193,6 @@ export class Application {
   }
 
   public async handle(ctxOrReq: Context | IncomingMessage, maybeRes?: ServerResponse): Promise<void> {
-    if (!this.booted) {
-      await this.boot();
-    }
     const ctx = ctxOrReq instanceof Context ? ctxOrReq : new Context(ctxOrReq, maybeRes!);
 
     // Maintenance Mode (bir down / bir up)
@@ -241,6 +238,7 @@ export class Application {
 
     await requestContextStorage.run(ctx, async () => {
       try {
+        if (!this.booted) await this.boot();
         await dispatch(0);
       } catch (err: any) {
         await ErrorHandler.handleException(ctx, err);

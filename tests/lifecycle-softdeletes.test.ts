@@ -23,6 +23,8 @@ class Article extends Model {
 
 describe('BirFramework Model Lifecycle Hooks & Soft Deletes', () => {
   before(async () => {
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
     await Schema.create('articles', (table: Blueprint) => {
       table.id();
       table.string('title');

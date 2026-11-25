@@ -138,7 +138,7 @@ export class BelongsToMany<T = any> extends Relation<T> {
       [this.relatedPivotKey]: id,
     }));
 
-    await new QueryBuilder(this.pivotTable).insert(rows);
+    await new QueryBuilder(this.pivotTable).insert(rows, null);
   }
 
   public async detach(ids?: any | any[]): Promise<number> {

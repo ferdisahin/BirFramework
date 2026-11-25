@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DatabaseDriver, DatabaseDialect, QueryResult } from './driver.js';
 
 export interface PostgresConfig {
@@ -12,6 +13,7 @@ export interface PostgresConfig {
 export class PostgresDriver implements DatabaseDriver {
   public readonly dialect: DatabaseDialect = 'postgres';
   private client: any = null;
+  private readonly connectionScope = new AsyncLocalStorage<{ connection: any; active: boolean }>();
   private config: PostgresConfig;
 
   constructor(config: PostgresConfig = {}) {
@@ -32,6 +34,7 @@ export class PostgresDriver implements DatabaseDriver {
     try {
       // Dynamic import of pg or postgres client if installed
       const pgModule = await import('pg' as any).catch(() => null);
+      if (this.client) return;
       if (pgModule && pgModule.Pool) {
         const Pool = pgModule.Pool;
         this.client = new Pool(
@@ -81,10 +84,28 @@ export class PostgresDriver implements DatabaseDriver {
     return out;
   }
 
+  public async withConnection<T>(callback: () => Promise<T>): Promise<T> {
+    await this.connect();
+    const connection = await this.client.connect();
+    const scope = { connection, active: true };
+    try {
+      return await this.connectionScope.run(scope, callback);
+    } finally {
+      scope.active = false;
+      connection.release();
+    }
+  }
+
+  private get executor(): any {
+    const scope = this.connectionScope.getStore();
+    if (scope && !scope.active) throw new Error('[BirDatabase] Transaction connection has already been released.');
+    return scope?.connection ?? this.client;
+  }
+
   public async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
     await this.connect();
     const pgSql = this.translateSql(sql);
-    const result = await this.client.query(pgSql, params);
+    const result = await this.executor.query(pgSql, params);
     return result.rows as T[];
   }
 
@@ -99,10 +120,10 @@ export class PostgresDriver implements DatabaseDriver {
 
     // If it's an INSERT statement without RETURNING, append RETURNING id
     if (/^\s*INSERT\s+INTO/i.test(pgSql) && !/RETURNING/i.test(pgSql)) {
-      pgSql += ' RETURNING id';
+      pgSql = pgSql.replace(/;?\s*$/, '') + ' RETURNING id';
     }
 
-    const result = await this.client.query(pgSql, params);
+    const result = await this.executor.query(pgSql, params);
     const lastId = result.rows && result.rows[0] ? result.rows[0].id : 0;
 
     return {
@@ -115,7 +136,7 @@ export class PostgresDriver implements DatabaseDriver {
   public async exec(sql: string): Promise<void> {
     await this.connect();
     const pgSql = this.translateSql(sql);
-    await this.client.query(pgSql);
+    await this.executor.query(pgSql);
   }
 
   public async close(): Promise<void> {

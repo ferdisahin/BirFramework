@@ -28,7 +28,8 @@ class InvoiceMailable extends Mailable {
 
 describe('Phase 3: Schedule withoutOverlapping, Mail attachments, Queue failed_jobs & retry', () => {
   before(async () => {
-    await dbConnection.connect(':memory:');
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
     await Queue.ensureQueueTable();
   });
 

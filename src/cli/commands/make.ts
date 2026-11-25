@@ -199,7 +199,7 @@ export function makeMigration(name: string) {
 
 export default {
   async up() {
-    Schema.create('${tableName}', (table: Blueprint) => {
+    await Schema.create('${tableName}', (table: Blueprint) => {
       table.id();
       table.string('name');
       table.timestamps();
@@ -207,7 +207,7 @@ export default {
   },
 
   async down() {
-    Schema.dropIfExists('${tableName}');
+    await Schema.dropIfExists('${tableName}');
   }
 };
 `;
@@ -482,7 +482,7 @@ export function writeVercelConfig(rootDir: string = process.cwd()): { vercelJson
 
   // 2. api/index.js
   const apiIndexContent = `import { Application, compress, serveStatic, Inertia, logger } from 'birframework';
-import '../routes/web.js';
+import '../routes/web.${existsSync(resolve(rootDir, 'routes/web.ts')) ? 'ts' : 'js'}';
 
 const app = new Application();
 app.use(compress({ threshold: 512 }));
@@ -710,7 +710,8 @@ export function makeView(name: string, jsx?: boolean) {
     const depth = parts.length - 1;
     const layoutImport = depth === 0 ? './layouts/Layout.js' : `${'../'.repeat(depth)}layouts/Layout.js`;
 
-    const tsxContent = `import { Layout } from '${layoutImport}';
+    const tsxContent = `/** @jsxImportSource birframework */
+import { Layout } from '${layoutImport}';
 
 export default function ${pascalName}(props: { title?: string }) {
   return (

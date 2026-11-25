@@ -313,7 +313,7 @@ export class Model<T = any> {
       if (ctor.timestamps && !this.attributes['created_at']) {
         this.attributes['created_at'] = new Date().toISOString();
       }
-      const { lastInsertRowid } = await ctor.rawQuery().insert(this.attributes);
+      const { lastInsertRowid } = await ctor.rawQuery().insert(this.attributes, ctor.primaryKey);
       this.attributes[pk] = Number(lastInsertRowid);
       this.exists = true;
     }

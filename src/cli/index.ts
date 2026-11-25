@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export async function runCLI(args: string[] = process.argv.slice(2)) {
   process.on('SIGINT', () => {
@@ -203,6 +204,10 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
     }
 
     case 'queue:work': {
+      const bootstrap = ['app/jobs/index.ts', 'app/jobs/index.js']
+        .map((file) => resolve(file))
+        .find((file) => existsSync(file));
+      if (bootstrap) await import(pathToFileURL(bootstrap).href);
       const queue = args.includes('--queue') ? args[args.indexOf('--queue') + 1] : 'default';
       const once = args.includes('--once');
       await worker.work({ queue, once });

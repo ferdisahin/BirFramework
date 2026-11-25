@@ -10,6 +10,8 @@ class Customer extends Model {
 
 describe('BirFramework Model Factory & Faker Tests', () => {
   before(async () => {
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
     await Schema.create('customers', (table: Blueprint) => {
       table.id();
       table.string('name');

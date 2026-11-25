@@ -11,7 +11,7 @@ BirFramework is a full-stack web framework for Node.js and TypeScript. It brings
 Most TypeScript web applications require assembling and maintaining separate libraries for routing, validation, ORM, authentication, sessions, queue workers, and frontend SSR. BirFramework unifies these primitives into a single dependency tree:
 
 - **Unified Developer Experience**: Expressive routing, controller scaffolding, validation, database migrations, and background workers following consistent conventions.
-- **Persistent Runtime Performance**: Built for Node.js 22+ with a radix-tree router, zero cold-boot overhead per request, and built-in Brotli/Gzip compression.
+- **Persistent Runtime Performance**: Built for Node.js 22+ with a registration-order router, zero cold-boot overhead per request, and built-in Brotli/Gzip compression.
 - **Unified Preact + Inertia + SSR**: Persistent `.tsx` layouts (`Page.layout`), `useForm()` with `FormData` uploads, server-rendered `<Head>` SEO metadata, and SPA-speed transitions over `X-Bir-Inertia`.
 - **Serverless Ready**: Export `app.serverless()` or scaffold `vercel.json` + `api/index.js` with `bir make:vercel` for immediate deployment.
 
@@ -150,6 +150,17 @@ bir schedule:run                Run due scheduled tasks once
 bir test                        Run automated test suites
 ```
 
+Queue workers run in their own process. Register application job classes in `app/jobs/index.ts` or `app/jobs/index.js` before starting `bir queue:work`.
+
+```typescript
+import { Queue } from 'birframework';
+import { SendEmailJob } from './SendEmailJob.js';
+
+Queue.register(SendEmailJob);
+```
+
+Workers reserve each job while it runs. A job can run again after its reservation expires, so keep handlers idempotent.
+
 ## Database & ORM Example
 
 ```typescript
@@ -167,7 +178,8 @@ const paidOrders = await Order.where('status', '=', 'paid')
 
 // Atomic transaction with pessimistic row lock
 await DB.transaction(async () => {
-  const order = await Order.where('id', '=', 42).forUpdate().firstOrFail();
+  const order = await Order.where('id', '=', 42).forUpdate().first();
+  if (!order) throw new Error('Order 42 was not found');
   order.status = 'shipped';
   await order.save();
 });

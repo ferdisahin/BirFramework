@@ -24,7 +24,8 @@ class Member extends Model {
 
 describe('Phase 2: ORM increment/decrement, firstOrCreate, updateOrCreate, chunk, belongsToMany', () => {
   before(async () => {
-    await dbConnection.connect(':memory:');
+    process.env.DB_CONNECTION = 'sqlite';
+    process.env.DB_DATABASE = ':memory:';
     await dbConnection.execute(`DROP TABLE IF EXISTS wallet_accounts`);
     await dbConnection.execute(`DROP TABLE IF EXISTS members`);
     await dbConnection.execute(`DROP TABLE IF EXISTS roles`);

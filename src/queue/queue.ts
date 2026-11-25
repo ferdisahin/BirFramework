@@ -65,6 +65,21 @@ export class QueueManager {
 
   public async recordFailedJob(jobRecord: JobRecord, exception: string): Promise<number> {
     await this.ensureQueueTable();
+    return this.insertFailedJob(jobRecord, exception);
+  }
+
+  public async failClaimedJob(jobRecord: JobRecord, exception: string): Promise<void> {
+    const q = dbConnection.dialect === 'postgres' ? '"' : '`';
+    await dbConnection.transaction(async () => {
+      const result = await dbConnection.execute(
+        `DELETE FROM ${q}_jobs${q} WHERE ${q}id${q} = ? AND ${q}attempts${q} = ?;`,
+        [jobRecord.id, jobRecord.attempts]
+      );
+      if (Number(result.changes) > 0) await this.insertFailedJob(jobRecord, exception);
+    });
+  }
+
+  private async insertFailedJob(jobRecord: JobRecord, exception: string): Promise<number> {
     const q = dbConnection.dialect === 'postgres' ? '"' : '`';
     const result = await dbConnection.execute(
       `INSERT INTO ${q}_failed_jobs${q} (${q}queue${q}, ${q}name${q}, ${q}payload${q}, ${q}exception${q}, ${q}failed_at${q}) VALUES (?, ?, ?, ?, ?);`,
@@ -82,21 +97,24 @@ export class QueueManager {
   public async retryFailedJob(idOrAll: number | 'all' = 'all'): Promise<number> {
     await this.ensureQueueTable();
     const q = dbConnection.dialect === 'postgres' ? '"' : '`';
-    const failed = idOrAll === 'all'
-      ? await this.getFailedJobs()
-      : await dbConnection.query<FailedJobRecord>(`SELECT * FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [idOrAll]);
+    return dbConnection.transaction(async () => {
+      const failed = idOrAll === 'all'
+        ? await dbConnection.query<FailedJobRecord>(`SELECT * FROM ${q}_failed_jobs${q} ORDER BY ${q}id${q} DESC;`)
+        : await dbConnection.query<FailedJobRecord>(`SELECT * FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [idOrAll]);
 
-    if (failed.length === 0) return 0;
-
-    const now = Math.floor(Date.now() / 1000);
-    for (const item of failed) {
-      await dbConnection.execute(
-        `INSERT INTO ${q}_jobs${q} (${q}queue${q}, ${q}name${q}, ${q}payload${q}, ${q}attempts${q}, ${q}available_at${q}, ${q}created_at${q}) VALUES (?, ?, ?, 0, ?, ?);`,
-        [item.queue, item.name, item.payload, now, new Date().toISOString()]
-      );
-      await dbConnection.execute(`DELETE FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [item.id]);
-    }
-    return failed.length;
+      const now = Math.floor(Date.now() / 1000);
+      let retried = 0;
+      for (const item of failed) {
+        const removed = await dbConnection.execute(`DELETE FROM ${q}_failed_jobs${q} WHERE ${q}id${q} = ?;`, [item.id]);
+        if (Number(removed.changes) === 0) continue;
+        await dbConnection.execute(
+          `INSERT INTO ${q}_jobs${q} (${q}queue${q}, ${q}name${q}, ${q}payload${q}, ${q}attempts${q}, ${q}available_at${q}, ${q}created_at${q}) VALUES (?, ?, ?, 0, ?, ?);`,
+          [item.queue, item.name, item.payload, now, new Date().toISOString()]
+        );
+        retried++;
+      }
+      return retried;
+    });
   }
 
   public async flushFailedJobs(): Promise<number> {

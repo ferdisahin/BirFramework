@@ -59,8 +59,13 @@ export default {
   const controllerPath = resolve(process.cwd(), 'app/controllers/AuthController.ts');
   ensureDir(controllerPath);
 
-  const controllerTemplate = `import { type Context, Auth, Hash } from 'birframework';
+  const controllerTemplate = `import { type Context, Auth, Hash, csrfToken } from 'birframework';
 import { User } from '../models/User.js';
+
+function publicUser(user: User | null) {
+  if (!user) return null;
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
+}
 
 export class AuthController {
   public showLogin(ctx: Context) {
@@ -68,7 +73,7 @@ export class AuthController {
       ctx.header('Location', '/dashboard');
       return ctx.status(302).text('');
     }
-    return ctx.render('auth/login', { title: 'Sign In', error: null });
+    return ctx.render('auth/login', { csrfToken: csrfToken(ctx), title: 'Sign In', error: null });
   }
 
   public async login(ctx: Context) {
@@ -76,7 +81,7 @@ export class AuthController {
     const { email, password } = body;
 
     if (!email || !password) {
-      return ctx.render('auth/login', { title: 'Sign In', error: 'Email and password are required' }, 422);
+      return ctx.render('auth/login', { csrfToken: csrfToken(ctx), title: 'Sign In', error: 'Email and password are required' }, 422);
     }
 
     const loggedIn = await Auth.attempt(ctx, { email, password }, User);
@@ -84,12 +89,12 @@ export class AuthController {
       if (ctx.headers['accept']?.includes('application/json')) {
         return ctx.json({ error: 'Invalid email or password' }, 401);
       }
-      return ctx.render('auth/login', { title: 'Sign In', error: 'Invalid email or password' }, 401);
+      return ctx.render('auth/login', { csrfToken: csrfToken(ctx), title: 'Sign In', error: 'Invalid email or password' }, 401);
     }
 
     if (ctx.headers['accept']?.includes('application/json')) {
       const user = await Auth.user(ctx, User);
-      return ctx.json({ message: 'Logged in successfully', user });
+      return ctx.json({ message: 'Logged in successfully', user: publicUser(user) });
     }
 
     ctx.header('Location', '/dashboard');
@@ -101,7 +106,7 @@ export class AuthController {
       ctx.header('Location', '/dashboard');
       return ctx.status(302).text('');
     }
-    return ctx.render('auth/register', { title: 'Create Account', error: null });
+    return ctx.render('auth/register', { csrfToken: csrfToken(ctx), title: 'Create Account', error: null });
   }
 
   public async register(ctx: Context) {
@@ -109,12 +114,12 @@ export class AuthController {
     const { name, email, password } = body;
 
     if (!email || !password) {
-      return ctx.render('auth/register', { title: 'Create Account', error: 'Email and password are required' }, 422);
+      return ctx.render('auth/register', { csrfToken: csrfToken(ctx), title: 'Create Account', error: 'Email and password are required' }, 422);
     }
 
     const existing = await User.where('email', '=', email).first();
     if (existing) {
-      return ctx.render('auth/register', { title: 'Create Account', error: 'Email is already taken' }, 400);
+      return ctx.render('auth/register', { csrfToken: csrfToken(ctx), title: 'Create Account', error: 'Email is already taken' }, 400);
     }
 
     const hashedPassword = Hash.make(password);
@@ -122,12 +127,13 @@ export class AuthController {
       name: name || 'User',
       email,
       password: hashedPassword,
+      role: 'user',
     });
 
     await Auth.login(ctx, user);
 
     if (ctx.headers['accept']?.includes('application/json')) {
-      return ctx.json({ message: 'Registered successfully', user }, 201);
+      return ctx.json({ message: 'Registered successfully', user: publicUser(user) }, 201);
     }
 
     ctx.header('Location', '/dashboard');
@@ -136,7 +142,7 @@ export class AuthController {
 
   public async dashboard(ctx: Context) {
     const user = await Auth.user(ctx, User);
-    return ctx.render('dashboard', { title: 'Dashboard', user });
+    return ctx.render('dashboard', { csrfToken: csrfToken(ctx), title: 'Dashboard', user });
   }
 
   public logout(ctx: Context) {
@@ -158,7 +164,8 @@ export class AuthController {
     ensureDir(loginTsxPath);
     writeFileSync(
       loginTsxPath,
-      `import { Layout } from '../layouts/Layout.js';
+      `/** @jsxImportSource birframework */
+import { Layout } from '../layouts/Layout.js';
 import { Csrf } from 'birframework/jsx';
 
 export default function Login(props: { error?: string }) {
@@ -205,7 +212,8 @@ export default function Login(props: { error?: string }) {
     const registerTsxPath = resolve(process.cwd(), 'views/auth/register.tsx');
     writeFileSync(
       registerTsxPath,
-      `import { Layout } from '../layouts/Layout.js';
+      `/** @jsxImportSource birframework */
+import { Layout } from '../layouts/Layout.js';
 import { Csrf } from 'birframework/jsx';
 
 export default function Register(props: { error?: string }) {
@@ -256,7 +264,8 @@ export default function Register(props: { error?: string }) {
     const dashboardTsxPath = resolve(process.cwd(), 'views/dashboard.tsx');
     writeFileSync(
       dashboardTsxPath,
-      `import { Layout } from './layouts/Layout.js';
+      `/** @jsxImportSource birframework */
+import { Layout } from './layouts/Layout.js';
 import { Csrf } from 'birframework/jsx';
 
 export default function Dashboard(props: { user: { id: number; name: string; email: string; role?: string } }) {
@@ -320,6 +329,7 @@ export default function Dashboard(props: { user: { id: number; name: string; ema
       @endif
 
       <form method="POST" action="/login" class="space-y-4">
+        <input type="hidden" name="_token" value="{{ csrfToken }}" />
         <div>
           <label class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Email address</label>
           <input 
@@ -377,6 +387,7 @@ export default function Dashboard(props: { user: { id: number; name: string; ema
       @endif
 
       <form method="POST" action="/register" class="space-y-4">
+        <input type="hidden" name="_token" value="{{ csrfToken }}" />
         <div>
           <label class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Full name</label>
           <input 
@@ -440,6 +451,7 @@ export default function Dashboard(props: { user: { id: number; name: string; ema
       </div>
 
       <form method="POST" action="/logout">
+        <input type="hidden" name="_token" value="{{ csrfToken }}" />
         <button 
           type="submit"
           class="bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 px-3.5 py-1.5 rounded-md text-xs font-medium transition"
@@ -487,16 +499,16 @@ export default function Dashboard(props: { user: { id: number; name: string; ema
       const routesSnippet = `
 // --- Authentication Routes (scaffolded by bir make:auth) ---
 import { AuthController } from '../app/controllers/AuthController.js';
-import { auth, guest } from 'birframework';
+import { auth, guest, csrf } from 'birframework';
 
 const authController = new AuthController();
 
 Route.get('/login', (ctx) => authController.showLogin(ctx)).middleware(guest());
-Route.post('/login', (ctx) => authController.login(ctx)).middleware(guest());
+Route.post('/login', (ctx) => authController.login(ctx)).middleware(guest(), csrf());
 Route.get('/register', (ctx) => authController.showRegister(ctx)).middleware(guest());
-Route.post('/register', (ctx) => authController.register(ctx)).middleware(guest());
+Route.post('/register', (ctx) => authController.register(ctx)).middleware(guest(), csrf());
 Route.get('/dashboard', (ctx) => authController.dashboard(ctx)).middleware(auth());
-Route.post('/logout', (ctx) => authController.logout(ctx)).middleware(auth());
+Route.post('/logout', (ctx) => authController.logout(ctx)).middleware(auth(), csrf());
 `;
       writeFileSync(routesFile, existingContent + routesSnippet, 'utf-8');
       console.log(`\x1b[32m✔ Routes registered in:\x1b[0m ${routesFile.replace(process.cwd() + '/', '')}`);
@@ -505,6 +517,6 @@ Route.post('/logout', (ctx) => authController.logout(ctx)).middleware(auth());
 
   console.log(`\n\x1b[32m✔ Authentication scaffolding completed successfully!\x1b[0m`);
   console.log(`\nNext steps:`);
-  console.log(`  1. Run migrations: \x1b[36mnpx birframework migrate\x1b[0m`);
+  console.log(`  1. Run migrations: \x1b[36mnpx bir migrate\x1b[0m`);
   console.log(`  2. Visit \x1b[36mhttp://localhost:3000/login\x1b[0m to test!\n`);
 }

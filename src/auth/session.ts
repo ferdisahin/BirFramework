@@ -202,7 +202,7 @@ export class DatabaseSessionStore implements SessionStoreDriver {
     if (this.tableEnsured) return;
     const isPg = dbConnection.dialect === 'postgres';
     const q = isPg ? '"' : '`';
-    const textType = isPg ? 'VARCHAR(255)' : 'TEXT';
+    const textType = dbConnection.dialect === 'sqlite' ? 'TEXT' : 'VARCHAR(255)';
     await dbConnection.exec(`
       CREATE TABLE IF NOT EXISTS ${q}_sessions${q} (
         ${q}id${q} ${textType} PRIMARY KEY,
@@ -230,21 +230,14 @@ export class DatabaseSessionStore implements SessionStoreDriver {
     const lastAct = Math.floor(session.lastActivity / 1000);
     const payload = session.serialize();
 
-    const existing = await dbConnection.query<{ id: string }>(
-      `SELECT ${q}id${q} FROM ${q}_sessions${q} WHERE ${q}id${q} = ? LIMIT 1;`,
-      [session.id]
+    const update = dbConnection.dialect === 'mysql'
+      ? `ON DUPLICATE KEY UPDATE ${q}payload${q} = ?, ${q}last_activity${q} = ?`
+      : `ON CONFLICT (${q}id${q}) DO UPDATE SET ${q}payload${q} = ?, ${q}last_activity${q} = ?`;
+
+    await dbConnection.execute(
+      `INSERT INTO ${q}_sessions${q} (${q}id${q}, ${q}payload${q}, ${q}last_activity${q}) VALUES (?, ?, ?) ${update}`,
+      [session.id, payload, lastAct, payload, lastAct]
     );
-    if (existing.length > 0) {
-      await dbConnection.execute(
-        `UPDATE ${q}_sessions${q} SET ${q}payload${q} = ?, ${q}last_activity${q} = ? WHERE ${q}id${q} = ?;`,
-        [payload, lastAct, session.id]
-      );
-    } else {
-      await dbConnection.execute(
-        `INSERT INTO ${q}_sessions${q} (${q}id${q}, ${q}payload${q}, ${q}last_activity${q}) VALUES (?, ?, ?);`,
-        [session.id, payload, lastAct]
-      );
-    }
   }
 
   public async delete(id: string): Promise<void> {

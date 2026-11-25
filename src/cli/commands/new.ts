@@ -130,6 +130,8 @@ export async function createNewProject(
   const isBirTurbo = turbo === 'birturbo';
   const isJsx = view === 'jsx';
   const ext = isTS ? 'ts' : 'js';
+  const jsxExt = isTS ? 'tsx' : 'jsx';
+  const usesTsx = isTS || isJsx;
 
   console.log(`\n\x1b[36m🚀 Creating new BirJS project: ${name}\x1b[0m`);
   console.log(`\x1b[90m  • Language:    ${isTS ? 'TypeScript (Strict)' : 'Pure JavaScript (ESM)'}\x1b[0m`);
@@ -158,6 +160,10 @@ export async function createNewProject(
       '@import "tailwindcss";\n@source "../../views";\n@source "../../app";\n',
       'utf-8'
     );
+  }
+
+  if (isHotwire && isJsx && !isTailwind) {
+    mkdirSync(join(projectDir, 'resources/css'), { recursive: true });
   }
 
   if (isHotwire) {
@@ -526,16 +532,16 @@ export async function createBirApp({
 `;
       writeFileSync(join(projectDir, 'resources/js/bir-inertia.tsx'), inertiaClientContent, 'utf-8');
 
-      const appTsxContent = `${isTailwind ? "import '../css/app.css';\n" : ''}import { createBirApp } from './bir-inertia';
+      const appTsxContent = `import { createBirApp } from './bir-inertia';
 
-const pages = import.meta.glob('../../views/pages/**/*.tsx');
+const pages = import.meta.glob('../../views/pages/**/*.${jsxExt}');
 
 createBirApp({
   resolve: async (name) => {
     const normalized = name.replace(/\\./g, '/');
-    const loader = pages[\`../../views/pages/\${normalized}.tsx\`];
+    const loader = pages[\`../../views/pages/\${normalized}.${jsxExt}\`];
     if (!loader) {
-      throw new Error(\`[BirJS] Page component not found: views/pages/\${normalized}.tsx\`);
+      throw new Error(\`[BirJS] Page component not found: views/pages/\${normalized}.${jsxExt}\`);
     }
     return loader();
   },
@@ -556,15 +562,15 @@ createBirApp({
 
   // 1. package.json scripts & dependencies
   const devScripts: Record<string, string> = {
-    start: isTS ? 'npx tsx app.ts' : 'node app.js',
+    start: usesTsx ? `tsx app.${ext}` : 'node app.js',
   };
 
   const devDependencies: Record<string, string> = {};
   if (isTS) {
     devDependencies['typescript'] = '^5.7.0';
     devDependencies['@types/node'] = '^22.0.0';
-    devDependencies['tsx'] = '^4.19.0';
   }
+  if (usesTsx) devDependencies['tsx'] = '^4.19.0';
 
   const dependencies: Record<string, string> = {
     birframework: `^${VERSION}`,
@@ -585,14 +591,14 @@ createBirApp({
     }
 
     devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585,#ffb703" --names="server,queue,logs,vite" "npm run dev:server" "npm run dev:queue" "npm run dev:logs" "npm run dev:vite"';
-    devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+    devScripts['dev:server'] = usesTsx ? `tsx watch app.${ext}` : 'node --watch app.js';
     devScripts['dev:queue'] = 'npx bir queue:work';
     devScripts['dev:logs'] = 'npx bir pail';
     devScripts['dev:vite'] = 'vite';
     devScripts['build'] = 'vite build';
 
     const inputs: string[] = [];
-    if (isTailwind) inputs.push("'resources/css/app.css'");
+    if (isTailwind || isJsx) inputs.push("'resources/css/app.css'");
     inputs.push(isJsx ? "'resources/js/app.tsx'" : "'resources/js/app.js'");
 
     const viteConfigContent = `import { defineConfig } from 'vite';
@@ -615,6 +621,7 @@ export default defineConfig(({ command }) => ({
   build: {
     manifest: 'manifest.json',
     outDir: 'public/build',
+    copyPublicDir: false,
     rollupOptions: {
       input: [${inputs.join(', ')}],
     },
@@ -635,14 +642,14 @@ export default defineConfig(({ command }) => ({
       devScripts['build:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify';
       devScripts['watch:css'] = 'npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch';
       devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585,#ffb703" --names="server,queue,logs,css" "npm run dev:server" "npm run dev:queue" "npm run dev:logs" "npm run watch:css"';
-      devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+      devScripts['dev:server'] = usesTsx ? `tsx watch app.${ext}` : 'node --watch app.js';
       devScripts['dev:queue'] = 'npx bir queue:work';
       devScripts['dev:logs'] = 'npx bir pail';
       devScripts['build'] = 'npm run build:css';
     } else {
       devDependencies['concurrently'] = '^9.1.0';
       devScripts['dev'] = 'concurrently -c "#00f5d4,#7209b7,#f72585" --names="server,queue,logs" "npm run dev:server" "npm run dev:queue" "npm run dev:logs"';
-      devScripts['dev:server'] = isTS ? 'npx tsx watch app.ts' : 'node --watch app.js';
+      devScripts['dev:server'] = usesTsx ? `tsx watch app.${ext}` : 'node --watch app.js';
       devScripts['dev:queue'] = 'npx bir queue:work';
       devScripts['dev:logs'] = 'npx bir pail';
     }
@@ -658,11 +665,12 @@ export default defineConfig(({ command }) => ({
   };
   writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2), 'utf-8');
 
-  // 2. tsconfig.json (only if TS)
-  if (isTS) {
+  // 2. JSX runtime and TypeScript settings
+  if (usesTsx) {
     const tsconfig = {
       compilerOptions: {
         target: 'ESNext',
+        allowJs: !isTS,
         module: 'ESNext',
         moduleResolution: 'Bundler',
         allowImportingTsExtensions: true,
@@ -902,35 +910,44 @@ footer {
 }
 `;
   writeFileSync(join(projectDir, 'public/css/app.css'), cssFileContent, 'utf-8');
+  if (isHotwire && isJsx && !isTailwind) {
+    writeFileSync(join(projectDir, 'resources/css/app.css'), cssFileContent, 'utf-8');
+  }
 
   // 6 & 7. Views (JSX/TSX or Blade .html)
   if (isJsx) {
-    const jsxExt = isTS ? 'tsx' : 'jsx';
     const viteHead = hasVite
-      ? `        <Vite entries={[${isTailwind ? "'resources/css/app.css', " : ''}'resources/js/app.js']} />`
-      : '        <link rel="stylesheet" href="/css/app.css" />';
+      ? `          <Vite entries={['resources/css/app.css', 'resources/js/app.tsx']} />`
+      : '          <link rel="stylesheet" href="/css/app.css" />';
 
-    const jsxLayout = `${hasVite ? "import { Vite } from 'birframework/jsx';\n\n" : ''}export function Layout({ title, children }: { title: string; children?: any }) {
+    const jsxLayout = `/** @jsxImportSource birframework */
+import { raw${hasVite ? ', Vite' : ''} } from 'birframework/jsx';
+
+export function Layout({ title, children }${isTS ? ': { title: string; children?: any }' : ''}) {
   return (
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{title} - BirJS</title>
+    <>
+      {raw('<!DOCTYPE html>')}
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>{title} - BirJS</title>
 ${viteHead}
-      </head>
-      <body className="${isTailwind ? 'bg-[#09090b] text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
-        {children}
-      </body>
-    </html>
+        </head>
+        <body className="${isTailwind ? 'bg-[#09090b] text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-zinc-800 selection:text-white' : ''}">
+          {children}
+        </body>
+      </html>
+    </>
   );
 }
 `;
     writeFileSync(join(projectDir, `views/layouts/Layout.${jsxExt}`), jsxLayout, 'utf-8');
 
-    const jsxWelcome = `import { Layout } from './layouts/Layout.js';
+    const jsxWelcome = `/** @jsxImportSource birframework */
+import { Layout } from './layouts/Layout.${jsxExt}';
 
-export default function Welcome(props: { title: string; version: string; nodeVersion: string }) {
+export default function Welcome(props${isTS ? ': { title: string; version: string; nodeVersion: string }' : ''}) {
   return (
     <Layout title={props.title}>
       <div className="${isTailwind ? 'flex-1 flex flex-col justify-between' : 'wrapper'}">
@@ -1429,22 +1446,22 @@ export default function Welcome(props: { title: string; version: string; nodeVer
   }
 
   // 8. app.[ts|js] (Entry Point)
-  const appContent = `import { Application, logger } from 'birframework';
+  const appContent = `import { Application, logger${isJsx && isHotwire ? ', Inertia' : ''} } from 'birframework';
 
 const app = new Application();
 app.use(logger());
+${isJsx && isHotwire ? 'app.use(Inertia.middleware());\n' : ''}
+// Load application routes safely before accepting requests
+try {
+  await import('./routes/web.${ext}');
+} catch (err) {
+  app.catchBootError(err);
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, '0.0.0.0', (port) => {
   console.log(\`BirJS ready at http://localhost:\${port || PORT}\`);
 });
-
-// Load application routes safely
-try {
-  await import('./routes/web.js');
-} catch (err: any) {
-  app.catchBootError(err);
-}
 `;
   writeFileSync(join(projectDir, `app.${ext}`), appContent, 'utf-8');
 

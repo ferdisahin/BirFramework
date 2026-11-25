@@ -8,6 +8,7 @@ export interface QueryResult {
 
 export interface DatabaseDriver {
   readonly dialect: DatabaseDialect;
+  withConnection?<T>(callback: () => Promise<T>): Promise<T>;
   connect(): Promise<void> | void;
   query<T = any>(sql: string, params?: any[]): Promise<T[]>;
   queryOne<T = any>(sql: string, params?: any[]): Promise<T | null>;
