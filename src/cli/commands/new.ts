@@ -56,12 +56,34 @@ export async function createNewProject(
     return;
   }
 
-  // 2. Resolve language (TypeScript default)
+  // 2. Interactive: Press Enter for recommended defaults, or 'c' to customize
+  const allUnspecified = !lang && !css && !turbo && !view;
+  let customize = true;
+
+  if (allUnspecified && process.stdin.isTTY) {
+    console.log(`\n\x1b[1mBirJS Project Setup (${name})\x1b[0m`);
+    console.log('\x1b[90m  Recommended Default Stack:\x1b[0m');
+    console.log('    • Language:   \x1b[36mTypeScript\x1b[0m \x1b[90m(Backend .ts + Views .tsx)\x1b[0m');
+    console.log('    • Styling:    \x1b[36mTailwind CSS v4\x1b[0m \x1b[90m(with Vite)\x1b[0m');
+    console.log('    • Views:      \x1b[36mTSX / JSX + Preact Islands\x1b[0m');
+    console.log('    • Navigation: \x1b[36mHotwire Turbo 8\x1b[0m\n');
+
+    const mode = await askQuestion("\x1b[36mPress Enter to install with defaults, or type 'c' to customize:\x1b[0m ");
+    if (mode.toLowerCase() !== 'c') {
+      customize = false;
+      lang = 'ts';
+      css = 'tailwind';
+      turbo = 'hotwire';
+      view = 'jsx';
+    }
+  }
+
+  // Resolve language (applies to both Backend .ts/.js and Views .tsx/.jsx)
   if (!lang) {
-    if (process.stdin.isTTY) {
-      console.log('\n\x1b[1mSelect language:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m TypeScript \x1b[90m(Default, Recommended - Strict End-to-End Types)\x1b[0m');
-      console.log('  \x1b[32m2)\x1b[0m JavaScript \x1b[90m(Pure ESM)\x1b[0m');
+    if (customize && process.stdin.isTTY) {
+      console.log('\n\x1b[1mSelect language (Backend + Views):\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m TypeScript \x1b[90m(Default — Backend in .ts, Views in .tsx)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m JavaScript \x1b[90m(Pure ESM — Backend in .js, Views in .jsx)\x1b[0m');
       const langChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
       lang = langChoice === '2' ? 'js' : 'ts';
     } else {
@@ -69,12 +91,12 @@ export async function createNewProject(
     }
   }
 
-  // 3. Resolve CSS framework (Tailwind default)
+  // Resolve CSS framework (Tailwind default)
   if (!css) {
-    if (process.stdin.isTTY) {
+    if (customize && process.stdin.isTTY) {
       console.log('\n\x1b[1mSelect styling:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m Tailwind CSS \x1b[90m(Default, Recommended - Modern Utility-First v4)\x1b[0m');
-      console.log('  \x1b[32m2)\x1b[0m Pure CSS \x1b[90m(Vanilla CSS without build step or CDN)\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Tailwind CSS \x1b[90m(Default — Modern Utility-First v4)\x1b[0m');
+      console.log('  \x1b[32m2)\x1b[0m Pure CSS \x1b[90m(Vanilla CSS without Tailwind)\x1b[0m');
       const cssChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
       css = cssChoice === '2' ? 'css' : 'tailwind';
     } else {
@@ -82,30 +104,22 @@ export async function createNewProject(
     }
   }
 
-  // 4. Resolve SPA navigation engine (Interactive defaults to Hotwire; Non-TTY defaults to BirTurbo for test compatibility)
+  // Resolve SPA navigation & bundler (Hotwire + Vite default; None option)
   if (!turbo) {
-    if (process.stdin.isTTY) {
-      console.log('\n\x1b[1mSelect SPA navigation & asset bundler:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m Hotwire Turbo + Vite \x1b[90m(Default, Recommended - Turbo 8 + HMR + Preact Islands)\x1b[0m');
+    if (customize && process.stdin.isTTY) {
+      console.log('\n\x1b[1mSelect navigation & bundler:\x1b[0m');
+      console.log('  \x1b[32m1)\x1b[0m Hotwire Turbo + Vite \x1b[90m(Default — Turbo 8 + HMR + Preact Islands)\x1b[0m');
       console.log('  \x1b[32m2)\x1b[0m None \x1b[90m(Traditional Multi-Page MPA without Vite)\x1b[0m');
       const turboChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
       turbo = turboChoice === '2' ? 'none' : 'hotwire';
     } else {
-      turbo = 'birturbo';
+      turbo = 'hotwire';
     }
   }
 
-  // 5. Resolve view template engine (Interactive defaults to TSX/JSX; Non-TTY defaults to Blade for test compatibility)
+  // View engine defaults to TSX / JSX
   if (!view) {
-    if (process.stdin.isTTY) {
-      console.log('\n\x1b[1mSelect view template engine:\x1b[0m');
-      console.log('  \x1b[32m1)\x1b[0m TSX / JSX + Preact Islands \x1b[90m(Default, Recommended - Type-safe SSR + interactive islands)\x1b[0m');
-      console.log('  \x1b[32m2)\x1b[0m Blade (.bir) \x1b[90m(Laravel-style directives, slots & components)\x1b[0m');
-      const viewChoice = await askQuestion('\x1b[36mChoose [1-2] (default: 1):\x1b[0m ');
-      view = viewChoice === '2' ? 'blade' : 'jsx';
-    } else {
-      view = 'blade';
-    }
+    view = 'jsx';
   }
 
   const isTS = lang === 'ts';

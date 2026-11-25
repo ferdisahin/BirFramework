@@ -28,20 +28,20 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.strictEqual(existsSync(resolve(testTailwindApp, 'public/css/app.css')), true);
 
     const pkg = JSON.parse(readFileSync(resolve(testTailwindApp, 'package.json'), 'utf-8'));
-    assert.ok(pkg.devDependencies['@tailwindcss/cli']);
+    assert.ok(pkg.devDependencies['@tailwindcss/vite']);
     assert.ok(pkg.devDependencies['tailwindcss']);
     assert.ok(pkg.devDependencies['concurrently']);
-    assert.ok(pkg.scripts['build:css']);
-    assert.ok(pkg.scripts['watch:css']);
+    assert.ok(pkg.dependencies['preact']);
+    assert.ok(pkg.scripts['dev']);
+    assert.ok(pkg.scripts['build']);
 
-    const layoutHtml = readFileSync(resolve(testTailwindApp, 'views/layouts/app.html'), 'utf-8');
-    assert.doesNotMatch(layoutHtml, /cdn\.tailwindcss\.com/);
-    assert.match(layoutHtml, /href="\/css\/app\.css"/);
-    assert.match(layoutHtml, /bir_scripts/);
+    const layoutTsx = readFileSync(resolve(testTailwindApp, 'views/layouts/Layout.tsx'), 'utf-8');
+    assert.doesNotMatch(layoutTsx, /cdn\.tailwindcss\.com/);
+    assert.match(layoutTsx, /<Vite/);
 
-    const welcomeHtml = readFileSync(resolve(testTailwindApp, 'views/welcome.html'), 'utf-8');
-    assert.match(welcomeHtml, /BirFramework/);
-    assert.match(welcomeHtml, /routes\/web\.ts/);
+    const welcomeTsx = readFileSync(resolve(testTailwindApp, 'views/Welcome.tsx'), 'utf-8');
+    assert.match(welcomeTsx, /BirJS/);
+    assert.match(welcomeTsx, /HomeController\.ts/);
   });
 
   test('should scaffold JavaScript project with Pure CSS when requested', async () => {
@@ -57,13 +57,13 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
     assert.match(cssContent, /#000000/);
     assert.match(cssContent, /\.card/);
 
-    const layoutHtml = readFileSync(resolve(testCssApp, 'views/layouts/app.html'), 'utf-8');
-    assert.doesNotMatch(layoutHtml, /cdn\.tailwindcss\.com/);
-    assert.match(layoutHtml, /href="\/css\/app\.css"/);
+    const layoutJsx = readFileSync(resolve(testCssApp, 'views/layouts/Layout.jsx'), 'utf-8');
+    assert.doesNotMatch(layoutJsx, /cdn\.tailwindcss\.com/);
+    assert.match(layoutJsx, /<Vite/);
 
-    const welcomeHtml = readFileSync(resolve(testCssApp, 'views/welcome.html'), 'utf-8');
-    assert.match(welcomeHtml, /BirFramework/);
-    assert.match(welcomeHtml, /routes\/web\.js/);
+    const welcomeJsx = readFileSync(resolve(testCssApp, 'views/Welcome.jsx'), 'utf-8');
+    assert.match(welcomeJsx, /BirJS/);
+    assert.match(welcomeJsx, /HomeController\.js/);
   });
 
   test('should scaffold project with Hotwire Turbo when chosen', async () => {
@@ -82,9 +82,8 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       const jsContent = readFileSync(resolve(testHotwireApp, 'resources/js/app.js'), 'utf-8');
       assert.match(jsContent, /@hotwired\/turbo/);
 
-      const layoutHtml = readFileSync(resolve(testHotwireApp, 'views/layouts/app.html'), 'utf-8');
-      assert.match(layoutHtml, /@vite/);
-      assert.doesNotMatch(layoutHtml, /bir_scripts/);
+      const layoutTsx = readFileSync(resolve(testHotwireApp, 'views/layouts/Layout.tsx'), 'utf-8');
+      assert.match(layoutTsx, /<Vite/);
     } finally {
       if (existsSync(testHotwireApp)) {
         rmSync(testHotwireApp, { recursive: true, force: true });
@@ -100,8 +99,9 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
       const pkg = JSON.parse(readFileSync(resolve(testNoneApp, 'package.json'), 'utf-8'));
       assert.strictEqual(pkg.dependencies['@hotwired/turbo'], undefined);
 
-      const layoutHtml = readFileSync(resolve(testNoneApp, 'views/layouts/app.html'), 'utf-8');
-      assert.doesNotMatch(layoutHtml, /bir_scripts/);
+      const layoutTsx = readFileSync(resolve(testNoneApp, 'views/layouts/Layout.tsx'), 'utf-8');
+      assert.doesNotMatch(layoutTsx, /<Vite/);
+      assert.match(layoutTsx, /\/css\/app\.css/);
     } finally {
       if (existsSync(testNoneApp)) {
         rmSync(testNoneApp, { recursive: true, force: true });
@@ -124,9 +124,9 @@ describe('BirFramework CLI Project Scaffolding Tests', () => {
 
       assert.strictEqual(existsSync(resolve(testAuthApp, 'app/models/User.ts')), true);
       assert.strictEqual(existsSync(resolve(testAuthApp, 'app/controllers/AuthController.ts')), true);
-      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/login.html')), true);
-      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/register.html')), true);
-      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/dashboard.html')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/login.tsx')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/auth/register.tsx')), true);
+      assert.strictEqual(existsSync(resolve(testAuthApp, 'views/dashboard.tsx')), true);
 
       // Verify routes were appended
       const routesContent = readFileSync(resolve(testAuthApp, 'routes/web.ts'), 'utf-8');

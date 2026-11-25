@@ -362,7 +362,7 @@ export async function runCLI(args: string[] = process.argv.slice(2)) {
       '\x1b[0m');
       console.log(`\x1b[1m\x1b[37m  Next-Gen TypeScript Full-Stack Framework\x1b[0m \x1b[90m(v${VERSION})\x1b[0m\n`);
       console.log('\x1b[1mAvailable Commands:\x1b[0m');
-      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--birturbo|--no-turbo] [--blade|--jsx]\x1b[0m Create a new project');
+      console.log('  \x1b[32mnew <name> [--ts|--js] [--tailwind|--css] [--hotwire|--no-turbo] [--jsx|--blade]\x1b[0m Create a new project');
       console.log('  \x1b[32mdev\x1b[0m                       Start full-stack dev dashboard (Server, Queue, Logs, Vite)');
       console.log('  \x1b[32mserve\x1b[0m                     Start the development server with hot-reload');
       console.log('  \x1b[32mpail\x1b[0m                      Live real-time application log stream');
