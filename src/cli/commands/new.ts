@@ -170,6 +170,7 @@ async function mountIslands() {
       const rawProps = el.getAttribute('data-bir-props');
       const props = rawProps ? JSON.parse(rawProps) : {};
       el.dataset.birMounted = 'true';
+      el.innerHTML = '';
       render(h(Component, props), el);
     }
   }

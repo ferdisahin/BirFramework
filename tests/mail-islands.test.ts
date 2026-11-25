@@ -79,6 +79,7 @@ describe('ResendMailDriver & Preact Islands Tests', () => {
     const appJs = readFileSync(resolve(tempProject, 'resources/js/app.js'), 'utf-8');
     assert.ok(appJs.includes('mountIslands'));
     assert.ok(appJs.includes('data-bir-island'));
+    assert.ok(appJs.includes("el.innerHTML = ''"));
 
     const viteCfg = readFileSync(resolve(tempProject, 'vite.config.js'), 'utf-8');
     assert.ok(viteCfg.includes('@preact/preset-vite'));
